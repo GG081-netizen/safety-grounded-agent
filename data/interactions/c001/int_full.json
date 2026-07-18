@@ -1,0 +1,32 @@
+{
+  "interaction_id": "int_full",
+  "customer_id": "c001",
+  "date": "2026-06-11T19:39:58.397973Z",
+  "type": "meeting",
+  "raw_text": "详细会议记录...",
+  "summary": "完整测试会议",
+  "key_quotes": [
+    "Q1",
+    "Q2"
+  ],
+  "extracted_facts": {
+    "k1": "v1"
+  },
+  "procurement_signals": {
+    "urgency_signal": "急",
+    "budget_signal": null,
+    "decision_signal": null,
+    "competition_signal": null,
+    "engagement_signal": null
+  },
+  "risks": [
+    {
+      "level": "high",
+      "reason": "风险"
+    }
+  ],
+  "next_actions": [
+    "行动1"
+  ],
+  "created_at": "2026-06-11T19:39:58.397980Z"
+}

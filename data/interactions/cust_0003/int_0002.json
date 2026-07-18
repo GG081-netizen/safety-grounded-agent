@@ -1,0 +1,23 @@
+{
+  "interaction_id": "int_0002",
+  "customer_id": "cust_0003",
+  "date": "2026-05-04T19:39:58.402885Z",
+  "type": "email",
+  "raw_text": "发送产品方案和报价，等待客户反馈。客户表达了采购意向。",
+  "summary": "发送产品方案和报价，等待客户反馈",
+  "key_quotes": [],
+  "extracted_facts": {},
+  "procurement_signals": {
+    "urgency_signal": null,
+    "budget_signal": null,
+    "decision_signal": "CTO直接决策",
+    "competition_signal": "华为也在接触中",
+    "engagement_signal": "客户回复及时"
+  },
+  "risks": [],
+  "next_actions": [
+    "发送行业案例",
+    "发送合同模板"
+  ],
+  "created_at": "2026-06-11T19:39:58.402898Z"
+}

@@ -1,0 +1,11 @@
+title = "ConvAgent secret scanning policy"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "convagent-dashscope-api-key"
+description = "DashScope API credential assigned to a supported environment variable"
+regex = '''(?i)(?:CONVAGENT_DASHSCOPE_API_KEY|DASHSCOPE_API_KEY)[ \t]*[=:][ \t]*["']?([A-Za-z0-9_-]{28,})'''
+secretGroup = 1
+keywords = ["dashscope_api_key"]

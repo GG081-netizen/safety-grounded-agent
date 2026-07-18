@@ -1,0 +1,14 @@
+{
+  "tests/test_policy.py::test_medical_diagnosis_blocked_by_rule": {
+    "replacement": [
+      "tests/test_policy.py::test_sensitive_customer_attribute_inference_blocked_by_rule"
+    ],
+    "reason": "Phase 14 removes medical-domain samples and replaces them with enterprise customer privacy coverage."
+  },
+  "tests/test_policy.py::test_health_risk_blocked_or_uncertain_by_rule": {
+    "replacement": [
+      "tests/test_policy.py::test_private_financial_inference_blocked_by_rule"
+    ],
+    "reason": "Phase 14 replaces medical-domain ambiguity with private financial attribute inference coverage."
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "customer_id": "cust_0002",
+  "customer_name": "招商银行",
+  "aliases": [
+    "招行",
+    "CMB"
+  ],
+  "schema_version": 1,
+  "version": 2,
+  "source": "电话",
+  "industry": "Finance",
+  "company_size": "5000-10000",
+  "procurement_department": null,
+  "contacts": [
+    {
+      "name": "刘助理",
+      "title": "采购专员",
+      "department": "采购部",
+      "influence_level": "low",
+      "email": "刘助理@example.com",
+      "phone": null
+    },
+    {
+      "name": "王总",
+      "title": "CTO",
+      "department": "技术部",
+      "influence_level": "high",
+      "email": "王总@example.com",
+      "phone": null
+    }
+  ],
+  "procurement_items": [
+    {
+      "product_name": "Slack Enterprise Grid",
+      "category": "enterprise_software",
+      "quantity": 179,
+      "unit_budget": 150.0,
+      "total_budget": 26850.0,
+      "requirements": [
+        "3年保修",
+        "30天交付",
+        "7x24支持"
+      ]
+    },
+    {
+      "product_name": "Dell PowerEdge R750 服务器",
+      "category": "it_equipment",
+      "quantity": 186,
+      "unit_budget": 85000.0,
+      "total_budget": 15810000.0,
+      "requirements": [
+        "7x24支持",
+        "30天交付"
+      ]
+    }
+  ],
+  "budget_range": "500-1000万",
+  "procurement_cycle": "6个月",
+  "timeline": "预计5个月内完成采购",
+  "competitors": [
+    "阿里云"
+  ],
+  "decision_makers": [
+    "王总"
+  ],
+  "sales_stage": "negotiation",
+  "status": "active",
+  "deal_score": {
+    "score": 53,
+    "level": "B",
+    "need_clarity": 62,
+    "budget_fit": 55,
+    "decision_maker_access": 78,
+    "urgency": 72,
+    "engagement": 65,
+    "risk_penalty": 12,
+    "confidence": "medium",
+    "filled_dimensions": 3,
+    "total_dimensions": 5,
+    "missing_dimensions": [
+      "urgency",
+      "need_clarity"
+    ],
+    "reasoning": {},
+    "summary": "综合评分53分，需继续跟进"
+  },
+  "health_score": {
+    "health_score": 74,
+    "status": "healthy",
+    "recent_contact": 20,
+    "responsiveness": 10,
+    "decision_maker_involvement": 17,
+    "need_clarity": 9,
+    "budget_timeline_clarity": 18,
+    "summary": ""
+  },
+  "risks": [
+    {
+      "level": "low",
+      "reason": "客户联系人变动中"
+    },
+    {
+      "level": "medium",
+      "reason": "交付时间要求紧张"
+    },
+    {
+      "level": "medium",
+      "reason": "采购审批周期较长，可能延期"
+    }
+  ],
+  "next_actions": [
+    "安排技术演示",
+    "发送合同模板",
+    "确认交付时间表"
+  ],
+  "tags": [
+    "VIP",
+    "新客户"
+  ],
+  "created_at": "2026-06-05T19:39:58.414539Z",
+  "updated_at": "2026-06-11T19:39:58.415021Z"
+}

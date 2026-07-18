@@ -1,0 +1,66 @@
+[project]
+name = "conversation-agent"
+version = "0.1.0"
+description = "Procurement Sales Copilot Agent — analyze enterprise procurement needs, score deals, plan strategy"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "PyJWT[crypto]>=2.13,<3",
+    "anthropic>=0.30.0",
+    "httpx>=0.25.0",
+    "click>=8.0",
+    "rich>=13.0",
+    "sqlalchemy>=2.0.30",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-socket>=0.7.0",
+    "pytest-timeout>=2.3.0",
+    "pytest-asyncio>=0.24.0",
+    "build>=1.2,<2",
+    "hatchling>=1.27,<2",
+    "PyYAML>=6.0,<7",
+]
+
+[project.scripts]
+convagent = "conversation_agent.cli.main:cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+exclude = [
+    "/data",
+    "/.env*",
+    "/.venv",
+    "/.claude",
+    "/.pytest_cache",
+    "/logs",
+    "/tmp",
+    "/dist",
+    "/build",
+    "**/__pycache__",
+    "*.pyc",
+    "*.dump",
+    "*.backup",
+    "*.bak",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "--disable-socket --allow-unix-socket --timeout=10"
+markers = [
+    "unit: isolated test with no network or external service dependency",
+    "integration: explicit integration test with controlled service dependencies",
+    "e2e: end-to-end system test",
+    "postgres_integration: tests requiring a real PostgreSQL database",
+    "operational_integration: bounded recovery and operations tests requiring explicit invocation",
+]

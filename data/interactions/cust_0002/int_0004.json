@@ -1,0 +1,23 @@
+{
+  "interaction_id": "int_0004",
+  "customer_id": "cust_0002",
+  "date": "2026-06-11T19:39:58.414647Z",
+  "type": "note",
+  "raw_text": "客户反馈报价偏高，需要调整方案。客户表达了采购意向。",
+  "summary": "客户反馈报价偏高，需要调整方案",
+  "key_quotes": [],
+  "extracted_facts": {},
+  "procurement_signals": {
+    "urgency_signal": "领导要求尽快落地",
+    "budget_signal": null,
+    "decision_signal": null,
+    "competition_signal": "友商浪潮已报价",
+    "engagement_signal": "客户回复及时"
+  },
+  "risks": [],
+  "next_actions": [
+    "安排高层会面",
+    "提供详细报价单"
+  ],
+  "created_at": "2026-06-11T19:39:58.414658Z"
+}

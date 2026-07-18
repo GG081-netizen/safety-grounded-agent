@@ -1,0 +1,25 @@
+{
+  "interaction_id": "int_0003",
+  "customer_id": "cust_0003",
+  "date": "2026-04-22T19:39:58.402900Z",
+  "type": "wechat",
+  "raw_text": "面对面会议，深入讨论技术方案。客户表达了采购意向。",
+  "summary": "面对面会议，深入讨论技术方案",
+  "key_quotes": [],
+  "extracted_facts": {},
+  "procurement_signals": null,
+  "risks": [
+    {
+      "level": "medium",
+      "reason": "决策人近期出差"
+    },
+    {
+      "level": "medium",
+      "reason": "采购审批周期较长，可能延期"
+    }
+  ],
+  "next_actions": [
+    "发送合同模板"
+  ],
+  "created_at": "2026-06-11T19:39:58.402911Z"
+}

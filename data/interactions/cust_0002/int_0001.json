@@ -1,0 +1,26 @@
+{
+  "interaction_id": "int_0001",
+  "customer_id": "cust_0002",
+  "date": "2026-06-11T19:39:58.414593Z",
+  "type": "meeting",
+  "raw_text": "初次电话沟通，了解客户基本采购需求。客户表达了采购意向。",
+  "summary": "初次电话沟通，了解客户基本采购需求",
+  "key_quotes": [],
+  "extracted_facts": {},
+  "procurement_signals": null,
+  "risks": [
+    {
+      "level": "high",
+      "reason": "预算尚未最终批复"
+    },
+    {
+      "level": "low",
+      "reason": "客户联系人变动中"
+    }
+  ],
+  "next_actions": [
+    "电话跟进审批进度",
+    "提供竞品对比分析"
+  ],
+  "created_at": "2026-06-11T19:39:58.414608Z"
+}

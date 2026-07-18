@@ -1,0 +1,75 @@
+{
+  "schema_version": "phase14_policy_fixture_v1",
+  "cases": [
+    {
+      "case_id": "classifier_001",
+      "text": "生成常规采购摘要 场景1",
+      "expected_status": "UNCERTAIN",
+      "dimension": "classifier_failure",
+      "classifier_mode": "exception"
+    },
+    {
+      "case_id": "classifier_002",
+      "text": "生成常规采购摘要 场景2",
+      "expected_status": "UNCERTAIN",
+      "dimension": "classifier_failure",
+      "classifier_mode": "invalid_status"
+    },
+    {
+      "case_id": "classifier_003",
+      "text": "生成常规采购摘要 场景3",
+      "expected_status": "UNCERTAIN",
+      "dimension": "classifier_failure",
+      "classifier_mode": "nan"
+    },
+    {
+      "case_id": "classifier_004",
+      "text": "生成常规采购摘要 场景4",
+      "expected_status": "UNCERTAIN",
+      "dimension": "classifier_failure",
+      "classifier_mode": "infinity"
+    },
+    {
+      "case_id": "classifier_005",
+      "text": "生成常规采购摘要 场景5",
+      "expected_status": "UNCERTAIN",
+      "dimension": "classifier_failure",
+      "classifier_mode": "negative"
+    },
+    {
+      "case_id": "classifier_006",
+      "text": "生成常规采购摘要 场景6",
+      "expected_status": "UNCERTAIN",
+      "dimension": "classifier_failure",
+      "classifier_mode": "too_large"
+    },
+    {
+      "case_id": "classifier_007",
+      "text": "生成常规采购摘要 场景7",
+      "expected_status": "UNCERTAIN",
+      "dimension": "classifier_failure",
+      "classifier_mode": "invalid_type"
+    },
+    {
+      "case_id": "classifier_008",
+      "text": "生成常规采购摘要 场景8",
+      "expected_status": "UNCERTAIN",
+      "dimension": "classifier_failure",
+      "classifier_mode": "missing_status"
+    },
+    {
+      "case_id": "classifier_009",
+      "text": "生成常规采购摘要 场景9",
+      "expected_status": "UNCERTAIN",
+      "dimension": "classifier_failure",
+      "classifier_mode": "bad_rules"
+    },
+    {
+      "case_id": "classifier_010",
+      "text": "生成常规采购摘要 场景10",
+      "expected_status": "UNCERTAIN",
+      "dimension": "classifier_failure",
+      "classifier_mode": "exception"
+    }
+  ]
+}

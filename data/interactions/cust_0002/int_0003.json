@@ -1,0 +1,32 @@
+{
+  "interaction_id": "int_0003",
+  "customer_id": "cust_0002",
+  "date": "2026-06-11T19:39:58.414631Z",
+  "type": "wechat",
+  "raw_text": "面对面会议，深入讨论技术方案。客户表达了采购意向。",
+  "summary": "面对面会议，深入讨论技术方案",
+  "key_quotes": [],
+  "extracted_facts": {},
+  "procurement_signals": {
+    "urgency_signal": null,
+    "budget_signal": "预算已批复",
+    "decision_signal": "采购委员会集体决策",
+    "competition_signal": null,
+    "engagement_signal": "每周主动沟通"
+  },
+  "risks": [
+    {
+      "level": "medium",
+      "reason": "采购审批周期较长，可能延期"
+    },
+    {
+      "level": "high",
+      "reason": "友商报价低20%，价格竞争激烈"
+    }
+  ],
+  "next_actions": [
+    "提供竞品对比分析",
+    "电话跟进审批进度"
+  ],
+  "created_at": "2026-06-11T19:39:58.414645Z"
+}

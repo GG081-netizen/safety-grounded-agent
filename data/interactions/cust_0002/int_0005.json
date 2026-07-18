@@ -1,0 +1,32 @@
+{
+  "interaction_id": "int_0005",
+  "customer_id": "cust_0002",
+  "date": "2026-06-09T19:39:58.414660Z",
+  "type": "other",
+  "raw_text": "技术演示顺利完成，客户对产品满意。客户表达了采购意向。",
+  "summary": "技术演示顺利完成，客户对产品满意",
+  "key_quotes": [],
+  "extracted_facts": {},
+  "procurement_signals": {
+    "urgency_signal": "30天内必须交付",
+    "budget_signal": null,
+    "decision_signal": "CTO直接决策",
+    "competition_signal": null,
+    "engagement_signal": "已安排技术演示"
+  },
+  "risks": [
+    {
+      "level": "medium",
+      "reason": "交付时间要求紧张"
+    },
+    {
+      "level": "low",
+      "reason": "客户联系人变动中"
+    }
+  ],
+  "next_actions": [
+    "发送合同模板",
+    "确认交付时间表"
+  ],
+  "created_at": "2026-06-11T19:39:58.414675Z"
+}

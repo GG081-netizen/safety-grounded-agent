@@ -1,0 +1,67 @@
+name: Phase 14-G Baseline Discovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_manifest_sha256:
+        description: Frozen local Candidate Manifest SHA-256
+        required: true
+        type: string
+      expected_root_commit_sha:
+        description: Expected root commit SHA
+        required: true
+        type: string
+      expected_root_tree_sha:
+        description: Expected root tree SHA
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  discovery:
+    name: discovery
+    if: github.server_url == 'https://github.com' && github.event_name == 'workflow_dispatch' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install frozen dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen --extra dev
+      - name: Verify frozen root inputs
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_root_commit_sha }}
+          EXPECTED_TREE: ${{ inputs.expected_root_tree_sha }}
+        run: |
+          test "$GITHUB_SHA" = "$EXPECTED_COMMIT"
+          test "$(git show -s --format=%T HEAD)" = "$EXPECTED_TREE"
+          test "$(git rev-list --parents -n 1 HEAD | wc -w)" = "1"
+      - name: Rebuild Candidate Manifest
+        run: >-
+          uv run --frozen --extra dev python scripts/create_phase14_candidate_manifest.py
+          --mode index --root . --output tmp/phase14-candidate-manifest.json
+          --expect-sha256 "${{ inputs.candidate_manifest_sha256 }}"
+      - name: Create non-authoritative Discovery evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PHASE14_CURRENT_CHECK_RUN_ID: ${{ job.check_run_id }}
+        run: >-
+          uv run --frozen --extra dev python scripts/create_phase14_baseline_evidence.py
+          --mode discovery --candidate-manifest tmp/phase14-candidate-manifest.json
+          --output tmp/phase14-discovery-artifact
+      - name: Upload non-authoritative Discovery artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: phase14-baseline-discovery-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: tmp/phase14-discovery-artifact/
+          include-hidden-files: false
+          if-no-files-found: error
+          retention-days: 90

@@ -1,0 +1,31 @@
+{
+  "interaction_id": "int_0004",
+  "customer_id": "cust_0003",
+  "date": "2026-04-18T19:39:58.402913Z",
+  "type": "note",
+  "raw_text": "客户反馈报价偏高，需要调整方案。客户表达了采购意向。",
+  "summary": "客户反馈报价偏高，需要调整方案",
+  "key_quotes": [],
+  "extracted_facts": {},
+  "procurement_signals": null,
+  "risks": [
+    {
+      "level": "low",
+      "reason": "技术细节待确认"
+    },
+    {
+      "level": "low",
+      "reason": "客户联系人变动中"
+    },
+    {
+      "level": "medium",
+      "reason": "交付时间要求紧张"
+    }
+  ],
+  "next_actions": [
+    "发送行业案例",
+    "提供竞品对比分析",
+    "发送合同模板"
+  ],
+  "created_at": "2026-06-11T19:39:58.402926Z"
+}

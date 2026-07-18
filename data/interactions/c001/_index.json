@@ -1,0 +1,68 @@
+[
+  {
+    "interaction_id": "int_001",
+    "date": "2026-06-11T19:39:58.447098+00:00",
+    "type": "note",
+    "summary": "c1 interaction"
+  },
+  {
+    "interaction_id": "int_full",
+    "date": "2026-06-11T19:39:58.397973+00:00",
+    "type": "meeting",
+    "summary": "完整测试会议"
+  },
+  {
+    "interaction_id": "int_009",
+    "date": "2026-06-11T19:39:58.362240+00:00",
+    "type": "note",
+    "summary": ""
+  },
+  {
+    "interaction_id": "int_008",
+    "date": "2026-06-11T19:39:58.361628+00:00",
+    "type": "note",
+    "summary": ""
+  },
+  {
+    "interaction_id": "int_007",
+    "date": "2026-06-11T19:39:58.361058+00:00",
+    "type": "note",
+    "summary": ""
+  },
+  {
+    "interaction_id": "int_006",
+    "date": "2026-06-11T19:39:58.360363+00:00",
+    "type": "note",
+    "summary": ""
+  },
+  {
+    "interaction_id": "int_005",
+    "date": "2026-06-11T19:39:58.359763+00:00",
+    "type": "note",
+    "summary": ""
+  },
+  {
+    "interaction_id": "int_004",
+    "date": "2026-06-11T19:39:58.359282+00:00",
+    "type": "note",
+    "summary": ""
+  },
+  {
+    "interaction_id": "int_003",
+    "date": "2026-06-11T19:39:58.358773+00:00",
+    "type": "note",
+    "summary": ""
+  },
+  {
+    "interaction_id": "int_002",
+    "date": "2026-06-11T19:39:58.358289+00:00",
+    "type": "note",
+    "summary": ""
+  },
+  {
+    "interaction_id": "int_000",
+    "date": "2026-06-11T19:39:58.357161+00:00",
+    "type": "note",
+    "summary": ""
+  }
+]

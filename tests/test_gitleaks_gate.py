@@ -1,0 +1,90 @@
+from pathlib import Path
+import re
+import tomllib
+
+import pytest
+from pydantic import ValidationError
+
+from conversation_agent.evaluation.phase14_evidence import (
+    GitleaksRepositoryScanResult,
+)
+
+pytestmark = pytest.mark.unit
+
+
+def test_gitleaks_policy_extends_defaults_and_has_dashscope_rule():
+    text = Path(".gitleaks.toml").read_text(encoding="utf-8")
+    assert "useDefault = true" in text
+    assert 'id = "convagent-dashscope-api-key"' in text
+
+
+def _dashscope_pattern() -> re.Pattern[str]:
+    config = tomllib.loads(Path(".gitleaks.toml").read_text(encoding="utf-8"))
+    rule = next(
+        item for item in config["rules"]
+        if item["id"] == "convagent-dashscope-api-key"
+    )
+    return re.compile(rule["regex"])
+
+
+def test_dashscope_rule_detects_same_line_horizontal_whitespace():
+    token = "".join(("test", "Dash", "Scope", "Credential", "Value", "12345678"))
+    match = _dashscope_pattern().search(f"DASHSCOPE_API_KEY \t= \t{token}")
+    assert match is not None
+    assert match.group(1) == token
+
+
+@pytest.mark.parametrize("line_break", ["\n", "\r\n"])
+def test_dashscope_rule_does_not_cross_empty_value_line(line_break: str):
+    text = (
+        "CONVAGENT_DASHSCOPE_API_KEY="
+        + line_break
+        + "CONVAGENT_DASHSCOPE_BASE_URL=https://example.invalid"
+    )
+    assert _dashscope_pattern().search(text) is None
+
+
+def test_functional_gate_orders_canaries_before_real_scan():
+    text = Path("scripts/run_gitleaks_functional_gate.py").read_text(encoding="utf-8")
+    canary = text.index('summary["gitleaks_builtin_canary_detected"]')
+    real_scan = text.index('real_report = args.summary.with_suffix')
+    assert canary < real_scan
+
+
+@pytest.mark.parametrize(
+    ("return_code", "status", "findings", "passed"),
+    [(0, "pass", 0, True), (1, "fail", 1, False)],
+)
+def test_gitleaks_repository_scan_result_accepts_consistent_states(
+    return_code: int, status: str, findings: int, passed: bool
+):
+    result = GitleaksRepositoryScanResult(
+        gitleaks_process_return_code=return_code,
+        gitleaks_all_refs_scan_status=status,
+        gitleaks_all_refs_findings=findings,
+        gitleaks_real_repository_scan_passed=passed,
+    )
+    assert result.gitleaks_real_repository_scan_passed is passed
+
+
+@pytest.mark.parametrize(
+    ("return_code", "status", "findings", "passed"),
+    [
+        (0, "pass", 0, False),
+        (0, "fail", 0, True),
+        (0, "pass", 1, True),
+        (1, "pass", 0, True),
+    ],
+)
+def test_gitleaks_repository_scan_result_rejects_contradictions(
+    return_code: int, status: str, findings: int, passed: bool
+):
+    with pytest.raises(
+        ValidationError, match="gitleaks_repository_scan_result_inconsistent"
+    ):
+        GitleaksRepositoryScanResult(
+            gitleaks_process_return_code=return_code,
+            gitleaks_all_refs_scan_status=status,
+            gitleaks_all_refs_findings=findings,
+            gitleaks_real_repository_scan_passed=passed,
+        )

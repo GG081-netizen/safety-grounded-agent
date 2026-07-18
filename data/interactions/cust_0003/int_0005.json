@@ -1,0 +1,23 @@
+{
+  "interaction_id": "int_0005",
+  "customer_id": "cust_0003",
+  "date": "2026-04-18T19:39:58.402927Z",
+  "type": "other",
+  "raw_text": "技术演示顺利完成，客户对产品满意。客户表达了采购意向。",
+  "summary": "技术演示顺利完成，客户对产品满意",
+  "key_quotes": [],
+  "extracted_facts": {},
+  "procurement_signals": {
+    "urgency_signal": "30天内必须交付",
+    "budget_signal": "预算审批中，预计2周内完成",
+    "decision_signal": "部门总监即可拍板",
+    "competition_signal": "华为也在接触中",
+    "engagement_signal": "每周主动沟通"
+  },
+  "risks": [],
+  "next_actions": [
+    "安排技术演示",
+    "发送行业案例"
+  ],
+  "created_at": "2026-06-11T19:39:58.402939Z"
+}

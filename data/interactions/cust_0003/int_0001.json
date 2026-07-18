@@ -1,0 +1,16 @@
+{
+  "interaction_id": "int_0001",
+  "customer_id": "cust_0003",
+  "date": "2026-05-15T19:39:58.402873Z",
+  "type": "meeting",
+  "raw_text": "初次电话沟通，了解客户基本采购需求。客户表达了采购意向。",
+  "summary": "初次电话沟通，了解客户基本采购需求",
+  "key_quotes": [],
+  "extracted_facts": {},
+  "procurement_signals": null,
+  "risks": [],
+  "next_actions": [
+    "提供详细报价单"
+  ],
+  "created_at": "2026-06-11T19:39:58.402883Z"
+}

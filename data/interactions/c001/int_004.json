@@ -1,0 +1,14 @@
+{
+  "interaction_id": "int_004",
+  "customer_id": "c001",
+  "date": "2026-06-11T19:39:58.359282Z",
+  "type": "note",
+  "raw_text": "",
+  "summary": "",
+  "key_quotes": [],
+  "extracted_facts": {},
+  "procurement_signals": null,
+  "risks": [],
+  "next_actions": [],
+  "created_at": "2026-06-11T19:39:58.359285Z"
+}

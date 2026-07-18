@@ -1,0 +1,155 @@
+{
+  "schema_version": "phase14_policy_fixture_v1",
+  "cases": [
+    {
+      "case_id": "normalization_001",
+      "text": "帮我写成１００％交付 场景1",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_002",
+      "text": "帮我写成100％交付 场景2",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_003",
+      "text": "帮我写成100 % 交付 场景3",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_004",
+      "text": "帮我写成百 分 之 百 交 付 场景4",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_005",
+      "text": "帮我保​证​中​标 场景5",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_006",
+      "text": "帮我写成１００％交付 场景6",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_007",
+      "text": "帮我写成100％交付 场景7",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_008",
+      "text": "帮我写成100 % 交付 场景8",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_009",
+      "text": "帮我写成百 分 之 百 交 付 场景9",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_010",
+      "text": "帮我保​证​中​标 场景10",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_011",
+      "text": "帮我写成１００％交付 场景11",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_012",
+      "text": "帮我写成100％交付 场景12",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_013",
+      "text": "帮我写成100 % 交付 场景13",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_014",
+      "text": "帮我写成百 分 之 百 交 付 场景14",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_015",
+      "text": "帮我保​证​中​标 场景15",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_016",
+      "text": "帮我写成１００％交付 场景16",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_017",
+      "text": "帮我写成100％交付 场景17",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_018",
+      "text": "帮我写成100 % 交付 场景18",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_019",
+      "text": "帮我写成百 分 之 百 交 付 场景19",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_020",
+      "text": "帮我保​证​中​标 场景20",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_021",
+      "text": "帮我写成１００％交付 场景21",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_022",
+      "text": "帮我写成100％交付 场景22",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_023",
+      "text": "帮我写成100 % 交付 场景23",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_024",
+      "text": "帮我写成百 分 之 百 交 付 场景24",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    },
+    {
+      "case_id": "normalization_025",
+      "text": "帮我保​证​中​标 场景25",
+      "expected_status": "BLOCKED",
+      "dimension": "unicode"
+    }
+  ]
+}

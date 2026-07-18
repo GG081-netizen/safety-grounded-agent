@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "phase14_incident_attestation_v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "provider", "credential_fingerprint_prefix",
+    "credential_revocation_verified", "credential_rotation_verified",
+    "provider_usage_review_status", "discovered_at", "revocation_verified_at",
+    "rotation_verified_at", "provider_usage_reviewed_at", "attestation_generated_at",
+    "attestation_source", "subject_commit_sha", "protected_ref", "environment_name",
+    "environment_id", "deployment_identifier", "verified_by_role",
+    "approval_event_verified", "approval_event_count", "approval_environment_id",
+    "approval_reference"
+  ],
+  "properties": {
+    "schema_version": {"const": "phase14_incident_attestation_v2"},
+    "provider": {"const": "dashscope"},
+    "credential_fingerprint_prefix": {"type": "string", "pattern": "^[0-9a-f]{12}$"},
+    "credential_revocation_verified": {"const": true},
+    "credential_rotation_verified": {"const": true},
+    "provider_usage_review_status": {"const": "reviewed_no_anomaly"},
+    "discovered_at": {"type": "string", "format": "date-time"},
+    "revocation_verified_at": {"type": "string", "format": "date-time"},
+    "rotation_verified_at": {"type": "string", "format": "date-time"},
+    "provider_usage_reviewed_at": {"type": "string", "format": "date-time"},
+    "attestation_generated_at": {"type": "string", "format": "date-time"},
+    "attestation_source": {"const": "protected_environment"},
+    "subject_commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "protected_ref": {"type": "string", "pattern": "^refs/heads/"},
+    "environment_name": {"type": "string", "minLength": 1},
+    "environment_id": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+    "deployment_identifier": {"type": "string", "minLength": 1},
+    "verified_by_role": {"type": "string", "minLength": 1, "maxLength": 80},
+    "approval_event_verified": {"const": true},
+    "approval_event_count": {"type": "integer", "minimum": 1},
+    "approval_environment_id": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+    "approval_reference": {"type": "string", "pattern": "^apr_[0-9a-f]{64}$"}
+  }
+}

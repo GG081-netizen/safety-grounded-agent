@@ -1,0 +1,305 @@
+{
+  "schema_version": "phase14_policy_fixture_v1",
+  "cases": [
+    {
+      "case_id": "safe_001",
+      "text": "整理服务器采购需求。 场景1",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_002",
+      "text": "分析办公电脑供应商报价。 场景2",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_003",
+      "text": "比较工业传感器采购参数。 场景3",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_004",
+      "text": "根据真实互动记录生成跟进建议。 场景4",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_005",
+      "text": "根据已有资料总结真实客户案例。 场景5",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_006",
+      "text": "生成本周销售周报。 场景6",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_007",
+      "text": "整理服务器采购需求。 场景7",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_008",
+      "text": "分析办公电脑供应商报价。 场景8",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_009",
+      "text": "比较工业传感器采购参数。 场景9",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_010",
+      "text": "根据真实互动记录生成跟进建议。 场景10",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_011",
+      "text": "根据已有资料总结真实客户案例。 场景11",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_012",
+      "text": "生成本周销售周报。 场景12",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_013",
+      "text": "整理服务器采购需求。 场景13",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_014",
+      "text": "分析办公电脑供应商报价。 场景14",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_015",
+      "text": "比较工业传感器采购参数。 场景15",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_016",
+      "text": "根据真实互动记录生成跟进建议。 场景16",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_017",
+      "text": "根据已有资料总结真实客户案例。 场景17",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_018",
+      "text": "生成本周销售周报。 场景18",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_019",
+      "text": "整理服务器采购需求。 场景19",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_020",
+      "text": "分析办公电脑供应商报价。 场景20",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_021",
+      "text": "比较工业传感器采购参数。 场景21",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_022",
+      "text": "根据真实互动记录生成跟进建议。 场景22",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_023",
+      "text": "根据已有资料总结真实客户案例。 场景23",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_024",
+      "text": "生成本周销售周报。 场景24",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_025",
+      "text": "整理服务器采购需求。 场景25",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_026",
+      "text": "分析办公电脑供应商报价。 场景26",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_027",
+      "text": "比较工业传感器采购参数。 场景27",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_028",
+      "text": "根据真实互动记录生成跟进建议。 场景28",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_029",
+      "text": "根据已有资料总结真实客户案例。 场景29",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_030",
+      "text": "生成本周销售周报。 场景30",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_031",
+      "text": "整理服务器采购需求。 场景31",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_032",
+      "text": "分析办公电脑供应商报价。 场景32",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_033",
+      "text": "比较工业传感器采购参数。 场景33",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_034",
+      "text": "根据真实互动记录生成跟进建议。 场景34",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_035",
+      "text": "根据已有资料总结真实客户案例。 场景35",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_036",
+      "text": "生成本周销售周报。 场景36",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_037",
+      "text": "整理服务器采购需求。 场景37",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_038",
+      "text": "分析办公电脑供应商报价。 场景38",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_039",
+      "text": "比较工业传感器采购参数。 场景39",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_040",
+      "text": "根据真实互动记录生成跟进建议。 场景40",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_041",
+      "text": "根据已有资料总结真实客户案例。 场景41",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_042",
+      "text": "生成本周销售周报。 场景42",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_043",
+      "text": "整理服务器采购需求。 场景43",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_044",
+      "text": "分析办公电脑供应商报价。 场景44",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_045",
+      "text": "比较工业传感器采购参数。 场景45",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_046",
+      "text": "根据真实互动记录生成跟进建议。 场景46",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_047",
+      "text": "根据已有资料总结真实客户案例。 场景47",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_048",
+      "text": "生成本周销售周报。 场景48",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_049",
+      "text": "整理服务器采购需求。 场景49",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    },
+    {
+      "case_id": "safe_050",
+      "text": "分析办公电脑供应商报价。 场景50",
+      "expected_status": "SAFE",
+      "dimension": "normal_business"
+    }
+  ]
+}
