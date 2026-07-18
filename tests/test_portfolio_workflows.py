@@ -56,7 +56,7 @@ def test_default_ci_contains_no_phase14_or_operational_chain() -> None:
 def test_gitleaks_runtime_files_are_isolated_to_runner_temp() -> None:
     text = CI_PATH.read_text(encoding="utf-8")
 
-    assert "${{ runner.temp }}/phase15-gitleaks" in text
+    assert text.count('$RUNNER_TEMP/phase15-gitleaks') == 4
     assert "--output gitleaks.tar.gz" not in text
     assert "tar --extract --gzip --file gitleaks.tar.gz" not in text
     assert "--temporary-directory \"$GITLEAKS_DIR\"" in text

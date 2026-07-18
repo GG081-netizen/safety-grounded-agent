@@ -55,8 +55,6 @@ jobs:
   secret-and-source-tree:
     name: secret-and-source-tree
     runs-on: ubuntu-latest
-    env:
-      GITLEAKS_DIR: ${{ runner.temp }}/phase15-gitleaks
     steps:
       - uses: actions/checkout@v4
         with:
@@ -70,12 +68,14 @@ jobs:
           uv sync --frozen --extra dev
       - name: Scan source tree before scanner installation
         run: |
+          GITLEAKS_DIR="$RUNNER_TEMP/phase15-gitleaks"
           mkdir -p "$GITLEAKS_DIR"
           uv run --frozen --extra dev python scripts/check_repository_hygiene.py --scope source-tree --json > "$GITLEAKS_DIR/source-tree-before.json"
           uv run --frozen --extra dev python scripts/check_repository_hygiene.py --scope tracked-files --json > "$GITLEAKS_DIR/tracked-files.json"
       - name: Install pinned Gitleaks outside the repository
         shell: bash
         run: |
+          GITLEAKS_DIR="$RUNNER_TEMP/phase15-gitleaks"
           archive="$GITLEAKS_DIR/gitleaks.tar.gz"
           binary="$GITLEAKS_DIR/gitleaks"
           curl --fail --location --silent --show-error --output "$archive" https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
@@ -83,18 +83,20 @@ jobs:
           tar --extract --gzip --file "$archive" --directory "$GITLEAKS_DIR" gitleaks
           test "$("$binary" version)" = "8.30.1"
       - name: Run dual Canary gate and scan all refs
-        run: >-
-          uv run --frozen --extra dev python scripts/run_gitleaks_functional_gate.py
-          --binary "$GITLEAKS_DIR/gitleaks"
-          --repository .
-          --config .gitleaks.toml
-          --summary "$GITLEAKS_DIR/gitleaks-summary.json"
-          --temporary-directory "$GITLEAKS_DIR"
-          --subject-commit-sha "$GITHUB_SHA"
-          --checksum-valid
-          --version-valid
+        run: |
+          GITLEAKS_DIR="$RUNNER_TEMP/phase15-gitleaks"
+          uv run --frozen --extra dev python scripts/run_gitleaks_functional_gate.py \
+            --binary "$GITLEAKS_DIR/gitleaks" \
+            --repository . \
+            --config .gitleaks.toml \
+            --summary "$GITLEAKS_DIR/gitleaks-summary.json" \
+            --temporary-directory "$GITLEAKS_DIR" \
+            --subject-commit-sha "$GITHUB_SHA" \
+            --checksum-valid \
+            --version-valid
       - name: Prove scanner installation did not change the source tree
         run: |
+          GITLEAKS_DIR="$RUNNER_TEMP/phase15-gitleaks"
           uv run --frozen --extra dev python scripts/check_repository_hygiene.py --scope source-tree --json > "$GITLEAKS_DIR/source-tree-after.json"
           cmp "$GITLEAKS_DIR/source-tree-before.json" "$GITLEAKS_DIR/source-tree-after.json"
           test -z "$(git status --short --untracked-files=all)"
