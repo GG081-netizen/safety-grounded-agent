@@ -39,6 +39,7 @@ def main() -> int:
     parser.add_argument("--repository", type=Path, required=True)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--summary", type=Path, required=True)
+    parser.add_argument("--temporary-directory", type=Path)
     parser.add_argument("--github-trust", type=Path)
     parser.add_argument("--subject-commit-sha", required=True)
     parser.add_argument("--checksum-valid", action="store_true")
@@ -59,7 +60,13 @@ def main() -> int:
         "gitleaks_custom_canary_detected": False,
         "gitleaks_real_repository_scan_passed": False,
     }
-    with tempfile.TemporaryDirectory(prefix="convagent-gitleaks-") as directory:
+    temporary_directory = args.temporary_directory
+    if temporary_directory is not None:
+        temporary_directory.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(
+        prefix="convagent-gitleaks-",
+        dir=temporary_directory,
+    ) as directory:
         control = Path(directory)
         _run(["git", "init", "-q"], cwd=control)
         _run(["git", "config", "user.email", "phase14@example.invalid"], cwd=control)
@@ -107,6 +114,7 @@ def main() -> int:
                 "--report-path",
                 str(real_report),
                 "--no-banner",
+                "--log-opts=--all",
             ],
             cwd=args.repository,
             expected=(0, 1),

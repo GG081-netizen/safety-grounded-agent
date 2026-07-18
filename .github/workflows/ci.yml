@@ -1,25 +1,62 @@
 ---
 # yamllint disable rule:line-length
-name: CI
+name: Portfolio CI
 
 # yamllint disable-line rule:truthy
 on:
   push:
   pull_request:
   workflow_dispatch:
-  schedule:
-    - cron: "30 3 * * 1"
 
 permissions:
   contents: read
 
 jobs:
-  test:
-    name: test
+  unit-and-contract:
+    name: unit-and-contract
     runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install frozen development dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen --extra dev
+      - name: Compile source, tests, and scripts
+        run: uv run --frozen --extra dev python -m compileall -q src tests scripts
+      - name: Verify test Node ID baselines
+        run: uv run --frozen --extra dev python scripts/check_nodeid_baseline.py
+      - name: Run unit suite
+        run: uv run --frozen --extra dev python -m pytest -m unit -q --durations=20
+      - name: Run non-PostgreSQL full suite
+        run: uv run --frozen --extra dev python -m pytest -m "not postgres_integration and not operational_integration" -q
+
+  policy-and-rag-evaluation:
+    name: policy-and-rag-evaluation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install frozen development dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen --extra dev
+      - name: Evaluate policy boundary
+        run: uv run --frozen --extra dev convagent eval policy-boundary --strict
+      - name: Evaluate RAG adapter
+        run: uv run --frozen --extra dev convagent eval rag-adapter --strict
+      - name: Evaluate implementation production blockers
+        run: uv run --frozen --extra dev convagent eval production-blockers --scope implementation --strict
+
+  secret-and-source-tree:
+    name: secret-and-source-tree
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_DIR: ${{ runner.temp }}/phase15-gitleaks
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,128 +64,78 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
-      - name: Verify lockfile and install development dependencies
+      - name: Install frozen development dependencies
         run: |
           uv lock --check
           uv sync --frozen --extra dev
-      - name: Compile
-        run: uv run --frozen --extra dev python -m compileall -q src tests scripts
-      - name: Prepare machine-readable report directory
-        run: mkdir -p tmp
-      - name: Verify current-tree repository hygiene
-        run: uv run --frozen --extra dev python scripts/check_repository_hygiene.py --scope source-tree --json > tmp/source-tree.json
-      - name: Verify pre-existing test node IDs
-        run: uv run --frozen --extra dev python scripts/check_nodeid_baseline.py --output-json tmp/nodeids.json
-      - name: Run unit suite with timing warning
+      - name: Scan source tree before scanner installation
+        run: |
+          mkdir -p "$GITLEAKS_DIR"
+          uv run --frozen --extra dev python scripts/check_repository_hygiene.py --scope source-tree --json > "$GITLEAKS_DIR/source-tree-before.json"
+          uv run --frozen --extra dev python scripts/check_repository_hygiene.py --scope tracked-files --json > "$GITLEAKS_DIR/tracked-files.json"
+      - name: Install pinned Gitleaks outside the repository
         shell: bash
         run: |
-          start=$(date +%s)
-          set +e
-          uv run --frozen --extra dev python -m pytest -m unit -q --durations=20 --junitxml=tmp/unit.xml
-          status=$?
-          set -e
-          elapsed=$(($(date +%s) - start))
-          echo "unit_suite_seconds=${elapsed}"
-          if [ "$elapsed" -gt 90 ]; then
-            echo "::warning::Unit suite exceeded the initial 90 second CI budget"
-          fi
-          exit "$status"
-      - name: Run full suite
-        run: uv run --frozen --extra dev python -m pytest -q --junitxml=tmp/full.xml
-      - name: Run deterministic evaluations
+          archive="$GITLEAKS_DIR/gitleaks.tar.gz"
+          binary="$GITLEAKS_DIR/gitleaks"
+          curl --fail --location --silent --show-error --output "$archive" https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          test "$(sha256sum "$archive" | cut -d ' ' -f1)" = "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+          tar --extract --gzip --file "$archive" --directory "$GITLEAKS_DIR" gitleaks
+          test "$("$binary" version)" = "8.30.1"
+      - name: Run dual Canary gate and scan all refs
+        run: >-
+          uv run --frozen --extra dev python scripts/run_gitleaks_functional_gate.py
+          --binary "$GITLEAKS_DIR/gitleaks"
+          --repository .
+          --config .gitleaks.toml
+          --summary "$GITLEAKS_DIR/gitleaks-summary.json"
+          --temporary-directory "$GITLEAKS_DIR"
+          --subject-commit-sha "$GITHUB_SHA"
+          --checksum-valid
+          --version-valid
+      - name: Prove scanner installation did not change the source tree
         run: |
-          uv run --frozen --extra dev convagent --json eval policy-boundary --strict > tmp/policy-boundary.json
-          uv run --frozen --extra dev convagent --json eval rag-adapter --strict > tmp/rag-adapter.json
-          uv run --frozen --extra dev convagent --json eval production-blockers --scope implementation --strict > tmp/production-blockers-implementation.json
+          uv run --frozen --extra dev python scripts/check_repository_hygiene.py --scope source-tree --json > "$GITLEAKS_DIR/source-tree-after.json"
+          cmp "$GITLEAKS_DIR/source-tree-before.json" "$GITLEAKS_DIR/source-tree-after.json"
+          test -z "$(git status --short --untracked-files=all)"
+
+  package-build:
+    name: package-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install frozen development dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen --extra dev
       - name: Build and inspect distributions
         run: |
           uv run --frozen --extra dev python -m build
-          uv run --frozen --extra dev python scripts/check_distribution_contents.py --output-json tmp/distribution.json
-      - name: Create test evidence payload
-        if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
-        run: uv run --frozen --extra dev python scripts/create_phase14_job_payload.py --kind test --junit tmp/unit.xml --junit tmp/full.xml --nodeid-report tmp/nodeids.json --source-tree-report tmp/source-tree.json --policy-evaluation tmp/policy-boundary.json --rag-evaluation tmp/rag-adapter.json --implementation-evaluation tmp/production-blockers-implementation.json --distribution-report tmp/distribution.json --output tmp/test-payload.json
-      - name: Bind test producer runtime identity
-        if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          PHASE14_CURRENT_CHECK_RUN_ID: ${{ job.check_run_id }}
-        run: uv run --frozen --extra dev python scripts/verify_phase14_github_trust.py --mode producer --producer-job-name test --output tmp/test-github-trust.json
-      - name: Create test evidence envelope
-        if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
-        run: uv run --frozen --extra dev python scripts/create_phase14_evidence_report.py --report-type test-report --producer-job-name test --payload tmp/test-payload.json --github-trust tmp/test-github-trust.json --output tmp/test-evidence.json
-      - name: Upload test evidence
-        if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: phase14-test-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: tmp/test-evidence.json
-          if-no-files-found: error
-          retention-days: 90
-
-  secret-scan:
-    name: secret-scan
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.12"
-      - name: Install frozen dependencies
-        run: |
-          uv lock --check
-          uv sync --frozen --extra dev
-      - name: Install pinned Gitleaks binary
-        shell: bash
-        run: |
-          curl --fail --location --silent --show-error --output gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
-          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz" | sha256sum --check --strict
-          tar --extract --gzip --file gitleaks.tar.gz gitleaks
-          test "$(./gitleaks version)" = "8.30.1"
-      - name: Bind secret-scan producer runtime identity
-        if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          PHASE14_CURRENT_CHECK_RUN_ID: ${{ job.check_run_id }}
-        run: uv run --frozen --extra dev python scripts/verify_phase14_github_trust.py --mode producer --producer-job-name secret-scan --output tmp/gitleaks-github-trust.json
-      - name: Run dual Canary gate and scan all refs
-        run: uv run --frozen --extra dev python scripts/run_gitleaks_functional_gate.py --binary ./gitleaks --repository . --config .gitleaks.toml --summary tmp/phase14-gitleaks-report.json --github-trust tmp/gitleaks-github-trust.json --subject-commit-sha "$GITHUB_SHA" --checksum-valid --version-valid
-      - name: Upload Gitleaks evidence
-        if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: phase14-gitleaks-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: tmp/phase14-gitleaks-report.json
-          if-no-files-found: error
-          retention-days: 90
+          uv run --frozen --extra dev python scripts/check_distribution_contents.py --output-json "$RUNNER_TEMP/distribution.json"
 
   postgres-integration:
     name: postgres-integration
     runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
     env:
       POSTGRES_USER: convagent_test
       POSTGRES_PASSWORD: convagent_ci_test_only
-      POSTGRES_DB: convagent_r1_test
-      CONVAGENT_POSTGRES_TEST_URL: postgresql+asyncpg://convagent_test:convagent_ci_test_only@127.0.0.1:5432/convagent_r1_test
-      CONVAGENT_TEST_DB_CONFIRMED: convagent_r1_test
+      POSTGRES_DB: convagent_portfolio_test
+      CONVAGENT_POSTGRES_TEST_URL: postgresql+asyncpg://convagent_test:convagent_ci_test_only@127.0.0.1:5432/convagent_portfolio_test
+      CONVAGENT_TEST_DB_CONFIRMED: convagent_portfolio_test
     services:
       postgres:
         image: postgres:17
         env:
           POSTGRES_USER: convagent_test
           POSTGRES_PASSWORD: convagent_ci_test_only
-          POSTGRES_DB: convagent_r1_test
+          POSTGRES_DB: convagent_portfolio_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U convagent_test -d convagent_r1_test"
+          --health-cmd "pg_isready -U convagent_test -d convagent_portfolio_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
@@ -158,288 +145,42 @@ jobs:
         with:
           python-version: "3.12"
           enable-cache: true
-      - name: Verify lockfile and install dependencies
+      - name: Install frozen development dependencies
         run: |
           uv lock --check
           uv sync --frozen --extra dev
       - name: Upgrade database to head
         run: uv run --frozen --extra dev alembic -x database_url="$CONVAGENT_POSTGRES_TEST_URL" upgrade head
-      - name: Run non-destructive PostgreSQL contract
+      - name: Run non-destructive PostgreSQL contracts
         env:
           CONVAGENT_ALLOW_DESTRUCTIVE_DB_TESTS: "false"
-        run: uv run --frozen --extra dev python -m pytest -p no:xdist -m "postgres_integration and not operational_integration" -v --junitxml=postgres-nondestructive.xml
-      - name: Assert non-destructive tests executed
-        run: uv run --frozen --extra dev python scripts/check_pytest_junit.py postgres-nondestructive.xml --suite-identity postgres-non-destructive --minimum-tests 74 --allowed-skip test_downgrade_removes_four_business_tables --allowed-skip test_upgrade_downgrade_upgrade_cycle --output-json tmp/postgres-nondestructive-validation.json --required-test test_repository_commit_makes_request_and_audit_visible --required-test test_transaction_a_visible_while_coordinator_is_blocked --required-test test_alembic_does_not_disable_application_loggers --required-test test_service_level_concurrent_duplicate_executes_once_then_replays --required-test test_service_completed_replay_and_canonical_multiple_replay --required-test test_policy_blocked_finalizes_atomically_and_replays --required-test test_expired_active_reclaim_creates_failed_management_run --required-test test_stale_claim_token_cannot_complete_or_fail_fenced --required-test test_oversized_replay_snapshot_rolls_back_real_finalization --required-test test_http_postgres_executes_and_replays --required-test test_http_postgres_in_progress_then_replays --required-test test_http_postgres_policy_blocked_is_replayed --required-test test_http_postgres_previous_failure_is_409 --required-test test_http_postgres_projection_failure_then_replay --required-test test_integrity_checker_and_doctor_are_read_only_on_real_postgres --required-test test_prune_uses_database_time_and_never_deletes_active_or_history
-      - name: Run destructive PostgreSQL migration cycle
-        env:
-          CONVAGENT_ALLOW_DESTRUCTIVE_DB_TESTS: "true"
-        run: uv run --frozen --extra dev python -m pytest -p no:xdist -m "postgres_integration and not operational_integration" -v --junitxml=postgres-destructive.xml
-      - name: Assert destructive tests executed without skips
-        run: uv run --frozen --extra dev python scripts/check_pytest_junit.py postgres-destructive.xml --suite-identity postgres-destructive --minimum-tests 74 --output-json tmp/postgres-destructive-validation.json --required-test test_downgrade_removes_four_business_tables --required-test test_upgrade_downgrade_upgrade_cycle --required-test test_repository_commit_makes_request_and_audit_visible --required-test test_transaction_a_visible_while_coordinator_is_blocked --required-test test_alembic_does_not_disable_application_loggers --required-test test_service_level_concurrent_duplicate_executes_once_then_replays --required-test test_service_completed_replay_and_canonical_multiple_replay --required-test test_policy_blocked_finalizes_atomically_and_replays --required-test test_expired_active_reclaim_creates_failed_management_run --required-test test_stale_claim_token_cannot_complete_or_fail_fenced --required-test test_oversized_replay_snapshot_rolls_back_real_finalization --required-test test_http_postgres_executes_and_replays --required-test test_http_postgres_in_progress_then_replays --required-test test_http_postgres_policy_blocked_is_replayed --required-test test_http_postgres_previous_failure_is_409 --required-test test_http_postgres_projection_failure_then_replay --required-test test_integrity_checker_and_doctor_are_read_only_on_real_postgres --required-test test_prune_uses_database_time_and_never_deletes_active_or_history
+        run: uv run --frozen --extra dev python -m pytest -p no:xdist -m "postgres_integration and not operational_integration" -v --junitxml="$RUNNER_TEMP/postgres-nondestructive.xml"
+      - name: Verify suite identity, required tests, and allowed skips
+        run: >-
+          uv run --frozen --extra dev python scripts/check_pytest_junit.py
+          "$RUNNER_TEMP/postgres-nondestructive.xml"
+          --suite-identity postgres-non-destructive
+          --minimum-tests 74
+          --allowed-skip test_downgrade_removes_four_business_tables
+          --allowed-skip test_upgrade_downgrade_upgrade_cycle
+          --output-json "$RUNNER_TEMP/postgres-nondestructive-validation.json"
+          --required-test test_repository_commit_makes_request_and_audit_visible
+          --required-test test_transaction_a_visible_while_coordinator_is_blocked
+          --required-test test_alembic_does_not_disable_application_loggers
+          --required-test test_service_level_concurrent_duplicate_executes_once_then_replays
+          --required-test test_service_completed_replay_and_canonical_multiple_replay
+          --required-test test_policy_blocked_finalizes_atomically_and_replays
+          --required-test test_expired_active_reclaim_creates_failed_management_run
+          --required-test test_stale_claim_token_cannot_complete_or_fail_fenced
+          --required-test test_oversized_replay_snapshot_rolls_back_real_finalization
+          --required-test test_http_postgres_executes_and_replays
+          --required-test test_http_postgres_in_progress_then_replays
+          --required-test test_http_postgres_policy_blocked_is_replayed
+          --required-test test_http_postgres_previous_failure_is_409
+          --required-test test_http_postgres_projection_failure_then_replay
+          --required-test test_integrity_checker_and_doctor_are_read_only_on_real_postgres
+          --required-test test_prune_uses_database_time_and_never_deletes_active_or_history
       - name: Verify final migration revision
         run: |
-          uv run --frozen --extra dev alembic -x database_url="$CONVAGENT_POSTGRES_TEST_URL" current > alembic-current.txt
-          grep -Fx "0001 (head)" alembic-current.txt
-      - name: Create PostgreSQL evidence payload
-        if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
-        run: uv run --frozen --extra dev python scripts/create_phase14_job_payload.py --kind postgres --junit postgres-nondestructive.xml --junit postgres-destructive.xml --suite-validation tmp/postgres-nondestructive-validation.json --suite-validation tmp/postgres-destructive-validation.json --database-revision-file alembic-current.txt --output tmp/postgres-payload.json
-      - name: Bind PostgreSQL producer runtime identity
-        if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          PHASE14_CURRENT_CHECK_RUN_ID: ${{ job.check_run_id }}
-        run: uv run --frozen --extra dev python scripts/verify_phase14_github_trust.py --mode producer --producer-job-name postgres-integration --output tmp/postgres-github-trust.json
-      - name: Create PostgreSQL evidence envelope
-        if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
-        run: uv run --frozen --extra dev python scripts/create_phase14_evidence_report.py --report-type postgres-report --producer-job-name postgres-integration --payload tmp/postgres-payload.json --github-trust tmp/postgres-github-trust.json --output tmp/postgres-evidence.json
-      - name: Upload PostgreSQL evidence
-        if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: phase14-postgres-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: tmp/postgres-evidence.json
-          if-no-files-found: error
-          retention-days: 90
-
-  operational-postgres:
-    name: operational-postgres
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      actions: read
-      contents: read
-    env:
-      POSTGRES_USER: convagent_test
-      POSTGRES_PASSWORD: convagent_ci_test_only
-      POSTGRES_DB: convagent_operational_test
-      CONVAGENT_POSTGRES_TEST_URL: postgresql+asyncpg://convagent_test:convagent_ci_test_only@127.0.0.1:5432/convagent_operational_test
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: convagent_test
-          POSTGRES_PASSWORD: convagent_ci_test_only
-          POSTGRES_DB: convagent_operational_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U convagent_test -d convagent_operational_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.12"
-      - name: Install frozen dependencies
-        run: |
-          uv lock --check
-          uv sync --frozen --extra dev
-      - name: Upgrade the operational test database
-        run: uv run --frozen --extra dev alembic -x database_url="$CONVAGENT_POSTGRES_TEST_URL" upgrade head
-      - name: Run bounded recovery, multi-instance, role, and soak tests
-        run: uv run --frozen --extra dev python -m pytest -p no:xdist -m operational_integration -v --junitxml=postgres-operational.xml
-      - name: Assert every operational drill executed
-        run: uv run --frozen --extra dev python scripts/check_pytest_junit.py postgres-operational.xml --suite-identity operational-postgres --minimum-tests 6 --output-json tmp/operational-validation.json --required-test test_process_crash_preserves_active_then_request_driven_reclaims --required-test test_two_independent_engines_coordinate_one_active_claim --required-test test_prune_skip_locked_loses_safely_to_terminal_reacquire --required-test test_database_network_outage_and_readiness_recover_without_fallback --required-test test_bounded_pool_soak_releases_all_connections --required-test test_ephemeral_database_role_ownership_and_runtime_permissions
-      - name: Run bounded logical backup and fresh-database restore
-        shell: bash
-        env:
-          POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
-        run: |
-          set -euo pipefail
-          restore_db=convagent_operational_restore_test
-          backup_file=/tmp/convagent-operational.dump
-          cleanup() {
-            timeout 30 docker exec "$POSTGRES_SERVICE_ID" dropdb -U convagent_test --if-exists "$restore_db" >/dev/null 2>&1 || true
-            timeout 30 docker exec "$POSTGRES_SERVICE_ID" rm -f "$backup_file" >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
-          timeout 60 docker exec "$POSTGRES_SERVICE_ID" pg_dump -U convagent_test -d convagent_operational_test --format=custom --file="$backup_file"
-          timeout 30 docker exec "$POSTGRES_SERVICE_ID" createdb -U convagent_test "$restore_db"
-          timeout 60 docker exec "$POSTGRES_SERVICE_ID" pg_restore -U convagent_test --exit-on-error --dbname="$restore_db" "$backup_file"
-          revision=$(timeout 30 docker exec "$POSTGRES_SERVICE_ID" psql -U convagent_test -d "$restore_db" -Atc "SELECT version_num FROM alembic_version")
-          test "$revision" = "0001"
-      - name: Verify final migration revision
-        run: |
-          uv run --frozen --extra dev alembic -x database_url="$CONVAGENT_POSTGRES_TEST_URL" current > alembic-operational-current.txt
-          grep -Fx "0001 (head)" alembic-operational-current.txt
-      - name: Create operational evidence payload
-        if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
-        run: uv run --frozen --extra dev python scripts/create_phase14_job_payload.py --kind operational --junit postgres-operational.xml --suite-validation tmp/operational-validation.json --database-revision-file alembic-operational-current.txt --output tmp/operational-payload.json
-      - name: Bind operational producer runtime identity
-        if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          PHASE14_CURRENT_CHECK_RUN_ID: ${{ job.check_run_id }}
-        run: uv run --frozen --extra dev python scripts/verify_phase14_github_trust.py --mode producer --producer-job-name operational-postgres --output tmp/operational-github-trust.json
-      - name: Create operational evidence envelope
-        if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
-        run: uv run --frozen --extra dev python scripts/create_phase14_evidence_report.py --report-type operational-report --producer-job-name operational-postgres --payload tmp/operational-payload.json --github-trust tmp/operational-github-trust.json --output tmp/operational-evidence.json
-      - name: Upload operational evidence
-        if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: phase14-operational-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: tmp/operational-evidence.json
-          if-no-files-found: error
-          retention-days: 90
-
-  incident-closure:
-    name: incident-closure
-    if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
-    needs: [test, secret-scan, postgres-integration, operational-postgres]
-    runs-on: ubuntu-latest
-    environment: phase14-incident-closure
-    permissions:
-      actions: read
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.12"
-      - name: Install frozen dependencies
-        run: |
-          uv lock --check
-          uv sync --frozen --extra dev
-      - uses: actions/download-artifact@v4
-        with:
-          name: phase14-test-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: tmp/test
-      - uses: actions/download-artifact@v4
-        with:
-          name: phase14-gitleaks-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: tmp/gitleaks
-      - uses: actions/download-artifact@v4
-        with:
-          name: phase14-postgres-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: tmp/postgres
-      - uses: actions/download-artifact@v4
-        with:
-          name: phase14-operational-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: tmp/operational
-      - name: Verify protected GitHub runtime
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          PHASE14_CURRENT_CHECK_RUN_ID: ${{ job.check_run_id }}
-          PHASE14_ENVIRONMENT_NAME: phase14-incident-closure
-          PHASE14_PROTECTED_REF: refs/heads/main
-          GITHUB_REF_PROTECTED: ${{ github.ref_protected }}
-        run: uv run --frozen --extra dev python scripts/verify_phase14_github_trust.py --mode incident --output tmp/incident-github-trust.json
-      - name: Generate protected Runtime Attestation V2
-        env:
-          CONVAGENT_PHASE14_ATTESTATION_PATH: tmp/phase14_incident_attestation.json
-          CONVAGENT_PHASE14_GITHUB_EVIDENCE_PATH: tmp/incident-github-trust.json
-          PHASE14_CREDENTIAL_FINGERPRINT_PREFIX: ${{ secrets.PHASE14_CREDENTIAL_FINGERPRINT_PREFIX }}
-          PHASE14_CREDENTIAL_REVOCATION_VERIFIED: ${{ vars.PHASE14_CREDENTIAL_REVOCATION_VERIFIED }}
-          PHASE14_CREDENTIAL_ROTATION_VERIFIED: ${{ vars.PHASE14_CREDENTIAL_ROTATION_VERIFIED }}
-          PHASE14_PROVIDER_USAGE_REVIEW_STATUS: ${{ vars.PHASE14_PROVIDER_USAGE_REVIEW_STATUS }}
-          PHASE14_DISCOVERED_AT: ${{ vars.PHASE14_DISCOVERED_AT }}
-          PHASE14_REVOCATION_VERIFIED_AT: ${{ vars.PHASE14_REVOCATION_VERIFIED_AT }}
-          PHASE14_ROTATION_VERIFIED_AT: ${{ vars.PHASE14_ROTATION_VERIFIED_AT }}
-          PHASE14_PROVIDER_USAGE_REVIEWED_AT: ${{ vars.PHASE14_PROVIDER_USAGE_REVIEWED_AT }}
-          PHASE14_VERIFIED_BY_ROLE: ${{ vars.PHASE14_VERIFIED_BY_ROLE }}
-        run: uv run --frozen --extra dev python scripts/create_phase14_runtime_attestation.py
-      - name: Create non-authoritative incident evidence
-        env:
-          CONVAGENT_PHASE14_ENVIRONMENT_NAME: phase14-incident-closure
-        run: uv run --frozen --extra dev python scripts/create_phase14_closeout.py --mode incident --test tmp/test/test-evidence.json --gitleaks tmp/gitleaks/phase14-gitleaks-report.json --postgres tmp/postgres/postgres-evidence.json --operational tmp/operational/operational-evidence.json --attestation tmp/phase14_incident_attestation.json --github-trust tmp/incident-github-trust.json --output tmp/phase14-incident-evidence.json
-      - name: Evaluate incident evidence candidate
-        env:
-          CONVAGENT_PHASE14_PROTECTED_ENVIRONMENT: "true"
-          CONVAGENT_PHASE14_ENVIRONMENT_NAME: phase14-incident-closure
-          CONVAGENT_PHASE14_ATTESTATION_PATH: tmp/phase14_incident_attestation.json
-          CONVAGENT_PHASE14_GITLEAKS_REPORT_PATH: tmp/gitleaks/phase14-gitleaks-report.json
-        run: uv run --frozen --extra dev convagent eval production-blockers --scope incident-evidence --strict
-      - name: Upload non-authoritative incident evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: phase14-incident-evidence-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: |
-            tmp/phase14-incident-evidence.json
-            tmp/phase14_incident_attestation.json
-          if-no-files-found: error
-          retention-days: 90
-
-  formal-closeout:
-    name: formal-closeout
-    if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
-    needs: [test, secret-scan, postgres-integration, operational-postgres, incident-closure]
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.12"
-      - name: Install frozen dependencies
-        run: |
-          uv lock --check
-          uv sync --frozen --extra dev
-      - uses: actions/download-artifact@v4
-        with:
-          name: phase14-test-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: tmp/test
-      - uses: actions/download-artifact@v4
-        with:
-          name: phase14-gitleaks-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: tmp/gitleaks
-      - uses: actions/download-artifact@v4
-        with:
-          name: phase14-postgres-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: tmp/postgres
-      - uses: actions/download-artifact@v4
-        with:
-          name: phase14-operational-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: tmp/operational
-      - uses: actions/download-artifact@v4
-        with:
-          name: phase14-incident-evidence-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: tmp/incident
-      - name: Verify formal GitHub runtime and all required jobs
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          PHASE14_CURRENT_CHECK_RUN_ID: ${{ job.check_run_id }}
-          PHASE14_PROTECTED_REF: refs/heads/main
-        run: uv run --frozen --extra dev python scripts/verify_phase14_github_trust.py --mode formal --output tmp/formal-github-trust.json
-      - name: Prepare formal input manifest
-        env:
-          CONVAGENT_PHASE14_ENVIRONMENT_NAME: phase14-incident-closure
-        run: uv run --frozen --extra dev python scripts/create_phase14_closeout.py --mode prepare-formal --test tmp/test/test-evidence.json --gitleaks tmp/gitleaks/phase14-gitleaks-report.json --postgres tmp/postgres/postgres-evidence.json --operational tmp/operational/operational-evidence.json --incident tmp/incident/phase14-incident-evidence.json --attestation tmp/incident/phase14_incident_attestation.json --github-trust tmp/formal-github-trust.json --output tmp/formal-input-manifest.json
-      - name: Run authoritative phase evaluation
-        env:
-          CONVAGENT_PHASE14_PROTECTED_ENVIRONMENT: "true"
-          CONVAGENT_PHASE14_ENVIRONMENT_NAME: phase14-incident-closure
-          CONVAGENT_PHASE14_ATTESTATION_PATH: tmp/incident/phase14_incident_attestation.json
-          CONVAGENT_PHASE14_GITLEAKS_REPORT_PATH: tmp/gitleaks/phase14-gitleaks-report.json
-          CONVAGENT_PHASE14_FORMAL_CONTEXT: "true"
-          CONVAGENT_PHASE14_FORMAL_MANIFEST_PATH: tmp/formal-input-manifest.json
-        run: uv run --frozen --extra dev convagent eval production-blockers --scope phase --strict
-      - name: Generate and round-trip formal artifacts
-        env:
-          CONVAGENT_PHASE14_ENVIRONMENT_NAME: phase14-incident-closure
-        run: uv run --frozen --extra dev python scripts/create_phase14_closeout.py --mode finalize --attestation tmp/incident/phase14_incident_attestation.json --manifest tmp/formal-input-manifest.json --github-trust tmp/formal-github-trust.json --output tmp/phase14-formal-artifact/phase14-formal-closeout.json --markdown tmp/phase14-formal-artifact/phase14-formal-closeout.md --attestation-output tmp/phase14-formal-artifact/phase14_incident_attestation.json
-      - name: Verify exact formal artifact staging
-        run: uv run --frozen --extra dev python scripts/check_phase14_formal_staging.py tmp/phase14-formal-artifact
-      - name: Upload authoritative formal closeout
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: phase14-formal-closeout-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: tmp/phase14-formal-artifact
-          include-hidden-files: false
-          if-no-files-found: error
-          retention-days: 90
-      - name: Publish authoritative Phase resolution
-        run: |
-          echo "implementation_status = pass" >> "$GITHUB_STEP_SUMMARY"
-          echo "incident_closure_status = pass" >> "$GITHUB_STEP_SUMMARY"
-          echo "phase_status = pass" >> "$GITHUB_STEP_SUMMARY"
-          echo "authoritative_resolution_source = formal-closeout" >> "$GITHUB_STEP_SUMMARY"
+          uv run --frozen --extra dev alembic -x database_url="$CONVAGENT_POSTGRES_TEST_URL" current > "$RUNNER_TEMP/alembic-current.txt"
+          grep -Fx "0001 (head)" "$RUNNER_TEMP/alembic-current.txt"

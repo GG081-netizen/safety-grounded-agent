@@ -1,4 +1,4 @@
-name: Phase 14-G Baseline Closeout
+name: "[Experimental] Phase 14 Formal Closeout"
 
 on:
   workflow_dispatch:
@@ -233,7 +233,6 @@ jobs:
     needs: [test, secret-scan, postgres-integration, operational-postgres]
     if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1
     runs-on: ubuntu-latest
-    environment: phase14-baseline-closeout
     permissions:
       actions: read
       contents: read

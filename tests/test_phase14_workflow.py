@@ -8,7 +8,7 @@ import yaml
 
 pytestmark = pytest.mark.unit
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
+WORKFLOW = ROOT / ".github" / "workflows" / "phase14-baseline-closeout.yml"
 
 
 def workflow_text() -> str:
@@ -28,42 +28,36 @@ def test_workflow_yaml_parses_to_expected_jobs():
     parsed = yaml.safe_load(workflow_text())
 
     assert isinstance(parsed, dict)
-    assert set(parsed["jobs"]) >= {
+    assert set(parsed["jobs"]) == {
         "test",
         "secret-scan",
         "postgres-integration",
         "operational-postgres",
-        "incident-closure",
-        "formal-closeout",
+        "baseline-approval",
+        "baseline-closeout",
     }
 
 
-def test_phase14_formal_chain_is_fresh_github_com_bound():
+def test_phase14_formal_chain_is_manual_only_experimental():
     text = workflow_text()
+    parsed = yaml.safe_load(text)
+    triggers = parsed.get("on", parsed.get(True))
 
+    assert parsed["name"] == "[Experimental] Phase 14 Formal Closeout"
+    assert set(triggers) == {"workflow_dispatch"}
     assert "if: github.event_name == 'workflow_dispatch' && github.run_attempt == 1" in text
     assert text.count("PHASE14_CURRENT_CHECK_RUN_ID: ${{ job.check_run_id }}") == 6
-    assert "verify_phase14_github_trust.py --mode incident" in text
-    assert "verify_phase14_github_trust.py --mode formal" in text
-    assert "GITHUB_SERVER_URL" in (ROOT / "scripts" / "verify_phase14_github_trust.py").read_text(
-        encoding="utf-8"
-    )
+    assert "environment:" not in text
+    assert "permissions:\n  contents: read" in text
 
 
-def test_incident_job_is_candidate_only_and_formal_job_is_authoritative():
+def test_experimental_closeout_remains_candidate_only():
     text = workflow_text()
-    incident_start = text.index("  incident-closure:")
-    formal_start = text.index("  formal-closeout:")
-    incident = text[incident_start:formal_start]
-    formal = text[formal_start:]
 
-    assert "--scope incident-evidence --strict" in incident
-    assert "--scope phase --strict" not in incident
-    assert "--scope phase --strict" in formal
-    assert "Upload authoritative formal closeout" in formal
-    assert formal.index("Upload authoritative formal closeout") < formal.index(
-        "Publish authoritative Phase resolution"
-    )
+    assert "Create non-self-authoritative baseline artifact" in text
+    assert "Publish candidate-only summary" in text
+    assert "Phase 14 overall remains BLOCKED." in text
+    assert "authoritative_resolution_source = formal-closeout" not in text
 
 
 def test_required_jobs_and_minimum_permissions_are_declared():
@@ -71,26 +65,23 @@ def test_required_jobs_and_minimum_permissions_are_declared():
 
     assert "permissions:\n  contents: read" in text
     assert "needs: [test, secret-scan, postgres-integration, operational-postgres]" in text
-    assert (
-        "needs: [test, secret-scan, postgres-integration, operational-postgres, incident-closure]"
-        in text
-    )
+    assert "needs: [test, secret-scan, postgres-integration, operational-postgres, baseline-approval]" in text
     assert "write-all" not in text
     assert "actions: write" not in text
     assert "contents: write" not in text
 
 
-def test_formal_artifact_has_fail_closed_upload_contract():
+def test_experimental_artifact_has_fail_closed_upload_contract():
     text = workflow_text()
-    formal = text[text.index("  formal-closeout:") :]
+    formal = text[text.index("  baseline-closeout:") :]
 
     assert "if-no-files-found: error" in formal
     assert "retention-days: 90" in formal
-    assert "phase14-formal-closeout-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}" in formal
-    assert "tmp/phase14-formal-artifact" in formal
-    assert "check_phase14_formal_staging.py" in formal
+    assert "phase14-baseline-closeout-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}" in formal
+    assert "tmp/phase14-baseline-artifact" in formal
+    assert "verify_phase14_repository_baseline.py --mode offline" in formal
     assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in formal
-    assert "authoritative_resolution_source = formal-closeout" in formal
+    assert "authoritative_resolution_source = formal-closeout" not in formal
 
 
 def test_github_enterprise_server_is_explicitly_unsupported(tmp_path, monkeypatch):

@@ -73,3 +73,29 @@ def test_approved_local_secret_store_is_not_content_scanned(tmp_path: Path) -> N
 
     assert module.scan_current_tree().status == "pass"
     assert module.approved_local_secret_store_status().status == "pass"
+
+
+def test_scanner_tool_outside_workspace_does_not_change_source_scan(
+    tmp_path: Path,
+) -> None:
+    module = _load_script("check_repository_hygiene.py")
+    workspace = tmp_path / "workspace"
+    runner_temp = tmp_path / "runner-temp"
+    workspace.mkdir()
+    runner_temp.mkdir()
+    module.ROOT = workspace
+    (workspace / "safe.txt").write_text("safe\n", encoding="utf-8")
+    (runner_temp / "gitleaks").write_bytes(b"x" * 5_000_001)
+
+    assert module.scan_current_tree().status == "pass"
+
+
+def test_oversized_scanner_tool_inside_workspace_is_rejected(tmp_path: Path) -> None:
+    module = _load_script("check_repository_hygiene.py")
+    module.ROOT = tmp_path
+    (tmp_path / "gitleaks").write_bytes(b"x" * 5_000_001)
+
+    result = module.scan_current_tree()
+
+    assert result.status == "fail"
+    assert result.findings[0].rule_id == "oversized_unscanned_file"

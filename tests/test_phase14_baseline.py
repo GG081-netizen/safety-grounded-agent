@@ -437,9 +437,10 @@ def test_baseline_workflows_parse_and_freeze_job_contracts():
     formal = yaml.safe_load(formal_path.read_text(encoding="utf-8"))
     assert set(discovery["jobs"]) == {"discovery"}
     assert tuple(formal["jobs"]) == BASELINE_JOBS
+    assert discovery["name"] == "[Experimental] Phase 14 Discovery"
+    assert formal["name"] == "[Experimental] Phase 14 Formal Closeout"
     text = formal_path.read_text(encoding="utf-8")
-    assert "environment: phase14-baseline-closeout" in text
-    assert text.count("environment: phase14-baseline-closeout") == 1
+    assert "environment:" not in text
     assert "CONVAGENT_DASHSCOPE_API_KEY" not in text
     assert "permissions: write-all" not in text
     assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in text
