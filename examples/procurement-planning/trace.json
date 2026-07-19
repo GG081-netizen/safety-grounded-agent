@@ -1,0 +1,101 @@
+{
+  "adapter_call_counts": {
+    "downstream_task_execution_calls": 1,
+    "fallback_rag_calls": 0,
+    "intent_router_calls": 1,
+    "orchestrator_entry_calls": 1,
+    "primary_rag_calls": 1,
+    "task_router_calls": 1
+  },
+  "contract_assertions": {
+    "citations_count": 3,
+    "confidence": 0.82,
+    "downstream_task_execution_calls": 1,
+    "evidence_count": 3,
+    "fallback_rag_calls": 0,
+    "fallback_used": false,
+    "intent_router_calls": 1,
+    "network_access": false,
+    "orchestrator_entry_calls": 1,
+    "policy_decision": "SAFE",
+    "primary_rag_calls": 1,
+    "provider": "deterministic_portfolio_rag",
+    "task_router_calls": 1,
+    "trace_complete": true
+  },
+  "effective_task": "qa",
+  "normalized_stages": [
+    {
+      "source_name": "PolicyEngine.decide()",
+      "source_type": "coordinator_method",
+      "stage": "policy"
+    },
+    {
+      "source_name": "IntentRouter.route() + TaskRouter.route()",
+      "source_type": "coordinator_method",
+      "stage": "router"
+    },
+    {
+      "source_name": "rag_query",
+      "source_type": "rag_diagnostic",
+      "stage": "rag_query"
+    },
+    {
+      "source_name": "ResponseProjector.project()",
+      "source_type": "projector",
+      "stage": "response_assembly"
+    }
+  ],
+  "observed_runtime_counts": {
+    "domain_agent_calls": 0,
+    "tool_calls": 0
+  },
+  "rag_diagnostics": [
+    {
+      "error_type": null,
+      "latency_ms": 0.0,
+      "message": "Portfolio RAG returned procurement advice with 3 citations",
+      "provider": "deterministic_portfolio_rag",
+      "step_name": "rag_query",
+      "success": true
+    }
+  ],
+  "real_intent_result": {
+    "alternative_intents": [],
+    "confidence": 1.0,
+    "intent": "customer_intake",
+    "reasoning": "命中关键词: 预算、采购"
+  },
+  "request_id": "req-demo-procurement-001",
+  "runtime_steps": [
+    {
+      "confidence": 0.72,
+      "input_summary": "为80名研发人员规划办公工作站，主要用于IDE、Docker和轻量本地模型，单机预算不超过7000元，请给出采购建议。",
+      "output_summary": "SAFE: 未命中本地安全规则",
+      "step_name": "policy_engine",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "confidence": 1.0,
+      "input_summary": "intent=customer_intake",
+      "output_summary": "task=qa: 命令显式指定执行任务",
+      "step_name": "router",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "confidence": 0.82,
+      "input_summary": "为80名研发人员规划办公工作站，主要用于IDE、Docker和轻量本地模型，单机预算不超过7000元，请给出采购建议。",
+      "output_summary": "Portfolio RAG returned procurement advice with 3 citations",
+      "step_name": "rag_query",
+      "tool_calls": [],
+      "warnings": []
+    }
+  ],
+  "scenario_id": "procurement-planning",
+  "session_id": "demo-procurement-001",
+  "task_override_applied": true,
+  "task_override_source": "endpoint:/v1/qa",
+  "trace_id": "trace-demo-procurement-001"
+}

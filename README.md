@@ -79,7 +79,23 @@ curl -X POST http://127.0.0.1:8000/v1/qa \
   -d '{"text":"比较办公电脑供应商报价时需要核对哪些信息？"}'
 ```
 
-Phase 15-D 将在后续阶段提供三个固定、零网络的作品集示例；本阶段只保留入口说明，不包含生成脚本或预生成输出。
+三个固定、零网络的作品集示例位于 [`examples/`](examples/)：
+
+| 场景 | 目录 | 说明 |
+|---|---|---|
+| 采购规划 | [`procurement-planning`](examples/procurement-planning/) | Policy 放行 → QA RAG → 引用与证据 |
+| Policy 硬阻断 | [`policy-blocked`](examples/policy-blocked/) | 隐私请求 → Policy BLOCKED → 下游不执行 |
+| RAG Fallback | [`rag-fallback`](examples/rag-fallback/) | 确定性外部 RAG 适配器超时模拟 → 本地 Fallback → 置信度上限 |
+
+重新生成示例：
+```bash
+uv run python scripts/generate_portfolio_examples.py
+```
+
+验证示例完整性（只读，不修改文件）：
+```bash
+uv run python scripts/generate_portfolio_examples.py --check
+```
 
 ## Evaluation
 

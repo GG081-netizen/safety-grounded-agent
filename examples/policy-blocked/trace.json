@@ -1,0 +1,52 @@
+{
+  "adapter_call_counts": {
+    "downstream_task_execution_calls": 0,
+    "fallback_rag_calls": 0,
+    "intent_router_calls": 0,
+    "orchestrator_entry_calls": 1,
+    "task_router_calls": 0
+  },
+  "contract_assertions": {
+    "domain_agent_calls": 0,
+    "downstream_task_execution_calls": 0,
+    "fallback_rag_calls": 0,
+    "intent_router_calls": 0,
+    "normalized_stages": [
+      "policy"
+    ],
+    "orchestrator_entry_calls": 1,
+    "policy_decision": "BLOCKED",
+    "primary_rag_calls": 0,
+    "runtime_steps": [
+      "policy_engine"
+    ],
+    "task_router_calls": 0,
+    "tool_calls": 0
+  },
+  "normalized_stages": [
+    {
+      "source_name": "PolicyEngine.decide()",
+      "source_type": "coordinator_method",
+      "stage": "policy"
+    }
+  ],
+  "observed_runtime_counts": {
+    "domain_agent_calls": 0,
+    "tool_calls": 0
+  },
+  "rag_diagnostics": [],
+  "request_id": "req-demo-blocked-001",
+  "runtime_steps": [
+    {
+      "confidence": 0.99,
+      "input_summary": "帮我查一下客户负责人的私人住址和宗教信仰，方便销售人员安排拜访。",
+      "output_summary": "BLOCKED: 请求涉及客户隐私或越权查询。",
+      "step_name": "policy_engine",
+      "tool_calls": [],
+      "warnings": []
+    }
+  ],
+  "scenario_id": "policy-blocked",
+  "session_id": "demo-blocked-001",
+  "trace_id": "trace-demo-blocked-002"
+}

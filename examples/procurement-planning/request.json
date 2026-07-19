@@ -1,0 +1,11 @@
+{
+  "body": {
+    "session_id": "demo-procurement-001",
+    "text": "为80名研发人员规划办公工作站，主要用于IDE、Docker和轻量本地模型，单机预算不超过7000元，请给出采购建议。"
+  },
+  "endpoint": "/v1/qa",
+  "expected_request_id": "req-demo-procurement-001",
+  "expected_trace_id": "trace-demo-procurement-001",
+  "method": "POST",
+  "scenario_id": "procurement-planning"
+}

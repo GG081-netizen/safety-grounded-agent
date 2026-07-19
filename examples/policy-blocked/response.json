@@ -1,0 +1,71 @@
+{
+  "debug": null,
+  "request_id": "req-demo-blocked-001",
+  "result": {
+    "citations": [],
+    "confidence": 0.99,
+    "final_response": "该请求超出当前业务支持范围。我可以帮助改写为基于已验证资料、权限和合规边界的方案。",
+    "intent_result": null,
+    "metadata": {
+      "cost_usd": 0.0,
+      "input_tokens": 0,
+      "intent": "blocked",
+      "intent_confidence": 0.99,
+      "latency_ms": 0,
+      "llm_calls": 0,
+      "output_tokens": 0,
+      "session_id": "demo-blocked-001",
+      "timestamp": "2026-01-01T00:00:00Z",
+      "tools_called": []
+    },
+    "policy": {
+      "classifier_used": false,
+      "confidence": 0.99,
+      "matched_rules": [
+        "privacy_overreach:私人住址",
+        "sensitive_attribute_inference:宗教信仰"
+      ],
+      "reason": "请求涉及客户隐私或越权查询。",
+      "status": "BLOCKED",
+      "warnings": []
+    },
+    "rag_result": null,
+    "session_id": "demo-blocked-001",
+    "task_route": null,
+    "timestamp": "2026-01-01T00:00:00Z",
+    "trace": [
+      {
+        "confidence": 0.99,
+        "input_summary": "帮我查一下客户负责人的私人住址和宗教信仰，方便销售人员安排拜访。",
+        "latency_ms": 0,
+        "output_summary": "BLOCKED: 请求涉及客户隐私或越权查询。",
+        "step_name": "policy_engine",
+        "tool_calls": [],
+        "warnings": []
+      }
+    ],
+    "user_input": "帮我查一下客户负责人的私人住址和宗教信仰，方便销售人员安排拜访。"
+  },
+  "session_id": "demo-blocked-001",
+  "trace": [
+    {
+      "code": "authenticated",
+      "component": "authentication",
+      "status": "succeeded",
+      "summary": "Authentication succeeded."
+    },
+    {
+      "code": "allowed",
+      "component": "authorization",
+      "status": "succeeded",
+      "summary": "Authorization succeeded."
+    },
+    {
+      "code": "policy_blocked",
+      "component": "policy_engine",
+      "status": "blocked",
+      "summary": "BLOCKED: 请求涉及客户隐私或越权查询。"
+    }
+  ],
+  "trace_id": "trace-demo-blocked-002"
+}

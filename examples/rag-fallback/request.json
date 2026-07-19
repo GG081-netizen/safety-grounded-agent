@@ -1,0 +1,11 @@
+{
+  "body": {
+    "session_id": "demo-fallback-001",
+    "text": "笔记本批量采购需要注意什么？"
+  },
+  "endpoint": "/v1/qa",
+  "expected_request_id": "req-demo-fallback-001",
+  "expected_trace_id": "trace-demo-fallback-003",
+  "method": "POST",
+  "scenario_id": "rag-fallback"
+}

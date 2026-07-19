@@ -1,0 +1,135 @@
+{
+  "adapter_call_counts": {
+    "downstream_task_execution_calls": 1,
+    "fallback_rag_calls": 1,
+    "intent_router_calls": 1,
+    "orchestrator_entry_calls": 1,
+    "primary_rag_calls": 1,
+    "task_router_calls": 1
+  },
+  "contract_assertions": {
+    "attempted_provider": "deterministic_external_stub",
+    "citation_sources_all_local": true,
+    "confidence": 0.55,
+    "confidence_within_fallback_cap": true,
+    "downstream_task_execution_calls": 1,
+    "external_failure_type": "timeout",
+    "fallback_rag_calls": 1,
+    "fallback_source_adapter": "deterministic_local_fallback",
+    "fallback_used": true,
+    "intent_router_calls": 1,
+    "network_access": false,
+    "no_fake_external_citation": true,
+    "orchestrator_entry_calls": 1,
+    "policy_decision": "SAFE",
+    "primary_rag_calls": 1,
+    "result_provider": "fallback",
+    "runtime_steps": [
+      "policy_engine",
+      "router",
+      "external_rag_query",
+      "local_rag_fallback"
+    ],
+    "task_router_calls": 1,
+    "warning_text": "External RAG unavailable; used local keyword fallback.",
+    "warning_visible": true
+  },
+  "normalized_stages": [
+    {
+      "source_name": "PolicyEngine.decide()",
+      "source_type": "coordinator_method",
+      "stage": "policy"
+    },
+    {
+      "source_name": "IntentRouter.route() + TaskRouter.route()",
+      "source_type": "coordinator_method",
+      "stage": "router"
+    },
+    {
+      "source_name": "external_rag_query",
+      "source_type": "rag_diagnostic",
+      "stage": "external_rag_attempt"
+    },
+    {
+      "source_name": "FallbackRagClient.fallback",
+      "source_type": "rag_diagnostic",
+      "stage": "fallback_activation"
+    },
+    {
+      "source_name": "deterministic_local_fallback",
+      "source_type": "rag_result",
+      "stage": "fallback_result"
+    },
+    {
+      "source_name": "ResponseProjector.project()",
+      "source_type": "projector",
+      "stage": "response_assembly"
+    }
+  ],
+  "observed_runtime_counts": {
+    "domain_agent_calls": 0,
+    "tool_calls": 1
+  },
+  "rag_diagnostics": [
+    {
+      "error_type": "timeout",
+      "latency_ms": 0.0,
+      "message": "RAG service timeout after 30s",
+      "provider": "external",
+      "step_name": "external_rag_query",
+      "success": false
+    },
+    {
+      "error_type": null,
+      "latency_ms": 0.0,
+      "message": "Local keyword RAG returned 1 evidence item",
+      "provider": "local",
+      "step_name": "local_rag_fallback",
+      "success": true
+    }
+  ],
+  "request_id": "req-demo-fallback-001",
+  "runtime_steps": [
+    {
+      "confidence": 0.72,
+      "input_summary": "笔记本批量采购需要注意什么？",
+      "output_summary": "SAFE: 未命中本地安全规则",
+      "step_name": "policy_engine",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "confidence": 1.0,
+      "input_summary": "intent=customer_intake",
+      "output_summary": "task=qa: 命令显式指定执行任务",
+      "step_name": "router",
+      "tool_calls": [],
+      "warnings": []
+    },
+    {
+      "confidence": 0.0,
+      "input_summary": "笔记本批量采购需要注意什么？",
+      "output_summary": "RAG service timeout after 30s",
+      "step_name": "external_rag_query",
+      "tool_calls": [
+        "POST /query"
+      ],
+      "warnings": [
+        "External RAG unavailable; used local keyword fallback."
+      ]
+    },
+    {
+      "confidence": 0.55,
+      "input_summary": "笔记本批量采购需要注意什么？",
+      "output_summary": "Local keyword RAG returned 1 evidence item",
+      "step_name": "local_rag_fallback",
+      "tool_calls": [],
+      "warnings": [
+        "External RAG unavailable; used local keyword fallback."
+      ]
+    }
+  ],
+  "scenario_id": "rag-fallback",
+  "session_id": "demo-fallback-001",
+  "trace_id": "trace-demo-fallback-003"
+}
