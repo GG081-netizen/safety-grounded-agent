@@ -97,6 +97,42 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
+      - name: Install PostgreSQL 17 client tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo install -d -m 0755 /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor \
+                -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      - name: Verify PostgreSQL 17 client tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          extract_major() {
+            "$1" --version | sed -E 's/^[^0-9]*([0-9]+).*/\1/'
+          }
+          command -v pg_dump
+          command -v pg_restore
+          command -v createdb
+          command -v dropdb
+          readlink -f "$(command -v pg_dump)"
+          readlink -f "$(command -v pg_restore)"
+          readlink -f "$(command -v createdb)"
+          readlink -f "$(command -v dropdb)"
+          test "$(extract_major pg_dump)" = "17"
+          test "$(extract_major pg_restore)" = "17"
+          test "$(extract_major createdb)" = "17"
+          test "$(extract_major dropdb)" = "17"
+          pg_dump --version
+          pg_restore --version
+          createdb --version
+          dropdb --version
       - name: Install frozen development dependencies
         run: |
           uv lock --check

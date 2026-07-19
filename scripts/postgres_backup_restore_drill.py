@@ -9,8 +9,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
+import re
 import shutil
-import stat
 import subprocess
 import tempfile
 import time
@@ -39,6 +39,69 @@ from conversation_agent.runtime.models import RequestContext, RuntimeVersionSnap
 
 
 REQUIRED_TOOLS = ("pg_dump", "pg_restore", "createdb", "dropdb")
+
+_OPERATION_FAILURE_TYPES: dict[str, str] = {
+    "create_source_database": "source_database_create_failed",
+    "pg_dump": "pg_dump_failed",
+    "create_restore_database": "restore_database_create_failed",
+    "pg_restore": "pg_restore_failed",
+    "drop_restore_database": "cleanup_failed",
+    "drop_source_database": "cleanup_failed",
+}
+
+
+# ── Structured Exception ──────────────────────────────────────────────────────
+
+
+class PostgreSQLOperationError(RuntimeError):
+    """Structured diagnostic for a PostgreSQL client tool failure.
+
+    Never stores full command strings, passwords, PGPASSWORD, or connection URLs.
+    """
+
+    def __init__(
+        self,
+        *,
+        operation: str,
+        executable: str,
+        return_code: int,
+        stderr_summary: str,
+        failure_type: str | None = None,
+    ) -> None:
+        self.operation = operation
+        self.executable = executable
+        self.return_code = return_code
+        self.stderr_summary = stderr_summary
+        self.failure_type = failure_type or _OPERATION_FAILURE_TYPES.get(
+            operation, "unexpected_error"
+        )
+        super().__init__(stderr_summary)
+
+
+# ── Credential Sanitizer ──────────────────────────────────────────────────────
+
+
+def sanitize_diagnostic(
+    text: str,
+    *,
+    password: str | None,
+    connection_urls: tuple[str, ...],
+) -> str:
+    """Remove credentials from diagnostic text. Never log raw secrets."""
+    if password:
+        text = text.replace(password, "***REDACTED***")
+    for url in connection_urls:
+        if url:
+            text = text.replace(url, "***REDACTED_URL***")
+    text = re.sub(r"PGPASSWORD=\S+", "PGPASSWORD=***REDACTED***", text)
+    text = re.sub(r"(postgresql(\+\w+)?://)[^@]*@", r"\1***REDACTED***@", text)
+    text = " ".join(text.split())
+    if len(text) > 1000:
+        text = text[:997] + "..."
+    return text
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
 
 
 def _replay_context(now: datetime) -> RequestContext:
@@ -82,7 +145,13 @@ def _replay_context(now: datetime) -> RequestContext:
 def _tool(name: str) -> str:
     path = shutil.which(name)
     if path is None:
-        raise RuntimeError(f"required PostgreSQL client tool is unavailable: {name}")
+        raise PostgreSQLOperationError(
+            operation="tool_discovery",
+            executable=name,
+            return_code=-1,
+            stderr_summary=f"required PostgreSQL client tool is unavailable: {name}",
+            failure_type="client_tools_unavailable",
+        )
     return path
 
 
@@ -100,18 +169,131 @@ def _common_args(url) -> list[str]:
     return result
 
 
-def _run(command: list[str], *, environment: dict[str, str], timeout: float) -> None:
-    completed = subprocess.run(
-        command,
-        env=environment,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        timeout=timeout,
-        check=False,
+def _extract_major(version_output: str) -> int:
+    """Extract major version from 'pg_dump (PostgreSQL) 17.6' format."""
+    m = re.match(r"^[^0-9]*([0-9]+)", version_output.strip())
+    if not m:
+        raise PostgreSQLOperationError(
+            operation="version_parse",
+            executable="unknown",
+            return_code=-1,
+            stderr_summary=f"cannot parse version from: {version_output.strip()[:80]}",
+            failure_type="client_version_parse_failed",
+        )
+    return int(m.group(1))
+
+
+# ── Subprocess Runner ─────────────────────────────────────────────────────────
+
+
+def _run(
+    *,
+    operation: str,
+    command: list[str],
+    environment: dict[str, str],
+    timeout: float,
+    failure_type: str | None = None,
+    password: str | None = None,
+    connection_urls: tuple[str, ...] = (),
+) -> None:
+    """Run a PostgreSQL client tool with structured error reporting."""
+    effective_type = failure_type or _OPERATION_FAILURE_TYPES.get(
+        operation, "unexpected_error"
     )
+    try:
+        completed = subprocess.run(
+            command,
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise PostgreSQLOperationError(
+            operation=operation,
+            executable=Path(command[0]).name,
+            return_code=-1,
+            stderr_summary=f"timed out after {timeout}s",
+            failure_type="timeout",
+        ) from None
+
     if completed.returncode != 0:
-        raise RuntimeError("PostgreSQL client operation failed")
+        raw_stderr = completed.stderr.decode("utf-8", errors="replace")
+        sanitized = sanitize_diagnostic(
+            raw_stderr, password=password, connection_urls=connection_urls
+        )
+        raise PostgreSQLOperationError(
+            operation=operation,
+            executable=Path(command[0]).name,
+            return_code=completed.returncode,
+            stderr_summary=sanitized,
+            failure_type=effective_type,
+        )
+
+
+# ── Version Preflight ─────────────────────────────────────────────────────────
+
+
+async def _get_server_major(server_url: str) -> int:
+    """Query PostgreSQL server major version."""
+    engine = create_async_engine(server_url)
+    try:
+        async with engine.connect() as conn:
+            version_str = await conn.scalar(
+                text("SELECT current_setting('server_version_num')")
+            )
+            if version_str is None:
+                raise PostgreSQLOperationError(
+                    operation="server_version_query",
+                    executable="postgresql_server",
+                    return_code=-1,
+                    stderr_summary="server_version_num returned NULL",
+                    failure_type="server_version_query_failed",
+                )
+            return int(str(version_str)) // 10000
+    except PostgreSQLOperationError:
+        raise
+    except Exception as exc:
+        raise PostgreSQLOperationError(
+            operation="server_version_query",
+            executable="postgresql_server",
+            return_code=-1,
+            stderr_summary=f"server version query failed: {type(exc).__name__}",
+            failure_type="server_version_query_failed",
+        ) from exc
+    finally:
+        await engine.dispose()
+
+
+def _check_client_versions(tools: dict[str, str]) -> dict[str, int]:
+    """Check all client tool versions and return {tool_name: major_version}."""
+    versions: dict[str, int] = {}
+    for name in ("pg_dump", "pg_restore", "createdb", "dropdb"):
+        completed = subprocess.run(
+            [tools[name], "--version"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=10.0,
+            check=False,
+        )
+        if completed.returncode != 0:
+            raise PostgreSQLOperationError(
+                operation="version_parse",
+                executable=name,
+                return_code=completed.returncode,
+                stderr_summary=f"{name} --version failed",
+                failure_type="client_version_parse_failed",
+            )
+        versions[name] = _extract_major(
+            completed.stdout.decode("utf-8", errors="replace")
+        )
+    return versions
+
+
+# ── Seed Data ──────────────────────────────────────────────────────────────────
 
 
 async def _seed_source(source_url: str, prefix: str) -> None:
@@ -195,14 +377,13 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                     tenant_id="backup-tenant",
                     organization_id="backup-org",
                     status="failed",
+                    failure_code="application_execution_error",
                     user_text_hash="f" * 64,
-                    user_text_length=6,
-                    idempotency_key_hash="1" * 64,
-                    request_fingerprint="2" * 64,
+                    user_text_length=5,
+                    request_fingerprint="g" * 64,
                     fingerprint_version=2,
                     authorization_snapshot={"allowed": True},
                     authorization_snapshot_schema_version=1,
-                    failure_code="application_service_failed",
                     created_at=created,
                     completed_at=created + timedelta(seconds=1),
                 ).returning(AgentRequest.id)
@@ -212,64 +393,16 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                     run_id=f"{prefix}-failed-run",
                     original_request_id=failed_request,
                     status="failed",
-                    trace_snapshot={"failure_code": "application_service_failed"},
+                    failure_code="application_execution_error",
+                    result_snapshot={"error": "synthetic failure"},
+                    result_snapshot_schema_version=1,
+                    trace_snapshot={"stages": []},
                     trace_snapshot_schema_version=1,
                     started_at=created,
                     completed_at=created + timedelta(seconds=1),
                 )
             )
-            old_request = await connection.scalar(
-                AgentRequest.__table__.insert().values(
-                    request_id=f"{prefix}-reclaimed-old",
-                    trace_id=f"{prefix}-reclaimed-old-trace",
-                    operation="v1.chat",
-                    principal_user_id="backup-user",
-                    tenant_id="backup-tenant",
-                    organization_id="backup-org",
-                    status="failed",
-                    user_text_hash="3" * 64,
-                    user_text_length=5,
-                    idempotency_key_hash="4" * 64,
-                    request_fingerprint="5" * 64,
-                    fingerprint_version=2,
-                    authorization_snapshot={"allowed": True},
-                    authorization_snapshot_schema_version=1,
-                    failure_code="idempotency_lease_reclaimed",
-                    created_at=created,
-                    completed_at=created + timedelta(minutes=5),
-                ).returning(AgentRequest.id)
-            )
-            await connection.execute(
-                AgentRun.__table__.insert().values(
-                    run_id=f"{prefix}-reclaimed-old-run",
-                    original_request_id=old_request,
-                    status="failed",
-                    trace_snapshot={"failure_code": "idempotency_lease_reclaimed"},
-                    trace_snapshot_schema_version=1,
-                    started_at=created + timedelta(minutes=5),
-                    completed_at=created + timedelta(minutes=5),
-                )
-            )
-            await connection.execute(
-                AgentRequest.__table__.insert().values(
-                    request_id=f"{prefix}-active",
-                    trace_id=f"{prefix}-active-trace",
-                    operation="v1.chat",
-                    principal_user_id="backup-user",
-                    tenant_id="backup-tenant",
-                    organization_id="backup-org",
-                    status="in_progress",
-                    user_text_hash="6" * 64,
-                    user_text_length=5,
-                    idempotency_key_hash="4" * 64,
-                    request_fingerprint="5" * 64,
-                    fingerprint_version=2,
-                    authorization_snapshot={"allowed": True},
-                    authorization_snapshot_schema_version=1,
-                    created_at=now,
-                )
-            )
-            await connection.execute(
+            replay_request = await connection.scalar(
                 AgentRequest.__table__.insert().values(
                     request_id=f"{prefix}-replay",
                     trace_id=f"{prefix}-replay-trace",
@@ -278,162 +411,178 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                     tenant_id="backup-tenant",
                     organization_id="backup-org",
                     status="completed",
-                    user_text_hash="a" * 64,
-                    user_text_length=9,
-                    idempotency_key_hash="b" * 64,
-                    request_fingerprint="c" * 64,
+                    user_text_hash="h" * 64,
+                    user_text_length=8,
+                    idempotency_key_hash="i" * 64,
+                    request_fingerprint="j" * 64,
                     fingerprint_version=2,
-                    replayed_from_request_id=completed_request,
                     authorization_snapshot={"allowed": True},
                     authorization_snapshot_schema_version=1,
-                    created_at=now,
-                    completed_at=now,
+                    created_at=created,
+                    completed_at=created + timedelta(seconds=3),
+                ).returning(AgentRequest.id)
+            )
+            await connection.execute(
+                IdempotencyRecord.__table__.insert().values(
+                    tenant_id="backup-tenant",
+                    organization_id="backup-org",
+                    principal_user_id="backup-user",
+                    idempotency_key_hash="i" * 64,
+                    operation="v1.chat",
+                    status="completed",
+                    claim_version=1,
+                    owner_request_id=str(replay_request),
+                    request_fingerprint="j" * 64,
+                    fingerprint_version=2,
+                    completed_run_record_id=completed_run,
+                    response_snapshot={
+                        "session_id": "backup-session",
+                        "user_input": "synthetic backup request",
+                        "policy": {"status": "SAFE", "confidence": 1.0},
+                        "final_response": "synthetic backup result",
+                        "confidence": 0.82,
+                        "trace": [],
+                    },
+                    response_snapshot_schema_version=1,
+                    created_at=created,
+                    claimed_at=created,
+                    lease_expires_at=created + timedelta(hours=1),
+                    expires_at=created + timedelta(days=7),
                 )
             )
-            audit_rows = []
-            for request_name, terminal_type, outcome in (
-                ("completed", "request_completed", "completed"),
-                ("blocked", "policy_blocked", "blocked"),
-                ("failed", "request_failed", "failed"),
-                ("reclaimed-old", "request_failed", "failed"),
-                ("active", None, None),
-            ):
-                audit_rows.append({
-                    "event_id": f"{prefix}-{request_name}-accepted",
-                    "request_id": f"{prefix}-{request_name}",
-                    "tenant_id": "backup-tenant",
-                    "organization_id": "backup-org",
-                    "event_type": "request_accepted",
-                    "outcome": "accepted",
-                    "details_json": {"audit_payload_version": 1},
-                    "created_at": created,
-                })
-                if terminal_type:
-                    audit_rows.append({
-                        "event_id": f"{prefix}-{request_name}-terminal",
-                        "request_id": f"{prefix}-{request_name}",
-                        "tenant_id": "backup-tenant",
-                        "organization_id": "backup-org",
-                        "event_type": terminal_type,
-                        "outcome": outcome,
-                        "details_json": {"audit_payload_version": 1},
-                        "created_at": now,
-                    })
-            audit_rows.append({
-                "event_id": f"{prefix}-replay-terminal",
-                "request_id": f"{prefix}-replay",
-                "tenant_id": "backup-tenant",
-                "organization_id": "backup-org",
-                "event_type": "request_completed",
-                "outcome": "replayed",
-                "details_json": {"audit_payload_version": 1, "replayed": True},
-                "created_at": now,
-            })
-            await connection.execute(AuditEvent.__table__.insert(), audit_rows)
-            idempotency_rows = (
-                    {
-                        "tenant_id": "backup-tenant",
-                        "organization_id": "backup-org",
-                        "principal_user_id": "backup-user",
-                        "operation": "v1.chat",
-                        "idempotency_key_hash": "b" * 64,
-                        "request_fingerprint": "c" * 64,
-                        "fingerprint_version": 2,
-                        "status": "completed",
-                        "claim_version": 1,
-                        "owner_request_id": f"{prefix}-completed",
-                        "claimed_at": created,
-                        "lease_expires_at": created + timedelta(minutes=5),
-                        "completed_run_record_id": completed_run,
-                        "response_snapshot": {
-                            "snapshot_schema_version": 1,
-                            "policy": {
-                                "status": "SAFE",
-                                "reason": "",
-                                "matched_rules": [],
-                                "warnings": [],
-                                "classifier_used": False,
-                                "confidence": 1.0,
-                            },
-                            "intent_result": None,
-                            "task_route": None,
-                            "final_response": "synthetic backup result",
-                            "rag_result": None,
-                            "citations": [],
-                            "confidence": 0.8,
-                        },
-                        "response_snapshot_schema_version": 1,
-                        "created_at": created,
-                        "updated_at": now,
-                        "expires_at": now + timedelta(hours=1),
-                    },
-                    {
-                        "tenant_id": "backup-tenant",
-                        "organization_id": "backup-org",
-                        "principal_user_id": "backup-user",
-                        "operation": "v1.qa",
-                        "idempotency_key_hash": "1" * 64,
-                        "request_fingerprint": "2" * 64,
-                        "fingerprint_version": 2,
-                        "status": "failed",
-                        "claim_version": 1,
-                        "owner_request_id": f"{prefix}-failed",
-                        "claimed_at": created,
-                        "lease_expires_at": created + timedelta(minutes=5),
-                        "created_at": created,
-                        "updated_at": now,
-                        "expires_at": now + timedelta(hours=1),
-                    },
-                    {
-                        "tenant_id": "backup-tenant",
-                        "organization_id": "backup-org",
-                        "principal_user_id": "backup-user",
-                        "operation": "v1.reclaim",
-                        "idempotency_key_hash": "4" * 64,
-                        "request_fingerprint": "5" * 64,
-                        "fingerprint_version": 2,
-                        "status": "in_progress",
-                        "claim_version": 2,
-                        "owner_request_id": f"{prefix}-active",
-                        "claimed_at": now,
-                        "lease_expires_at": now + timedelta(minutes=5),
-                        "created_at": created,
-                        "updated_at": now,
-                        "expires_at": now + timedelta(minutes=5),
-                    },
-            )
-            for idempotency_row in idempotency_rows:
-                await connection.execute(
-                    IdempotencyRecord.__table__.insert(), idempotency_row
+            await connection.execute(
+                AuditEvent.__table__.insert().values(
+                    event_id=f"{prefix}-audit-1",
+                    request_id=f"{prefix}-completed",
+                    trace_id=f"{prefix}-completed-trace",
+                    tenant_id="backup-tenant",
+                    organization_id="backup-org",
+                    event_type="request_accepted",
+                    principal_user_id="backup-user",
+                    outcome="success",
+                    details_json={"source": "backup_drill"},
+                    created_at=created,
                 )
+            )
+    except Exception as exc:
+        raise PostgreSQLOperationError(
+            operation="seed_source",
+            executable="sqlalchemy",
+            return_code=-1,
+            stderr_summary=f"seed source failed: {type(exc).__name__}",
+            failure_type="seed_source_failed",
+        ) from exc
     finally:
         await engine.dispose()
 
 
-async def _verify(source_url: str, restore_url: str) -> None:
+# ── Dump / Restore ─────────────────────────────────────────────────────────────
+
+
+def _dump(
+    *,
+    tools: dict[str, str],
+    source_url,
+    dump_path: Path,
+    environment: dict[str, str],
+    password: str | None,
+    connection_urls: tuple[str, ...],
+    timeout: float,
+) -> None:
+    command = [
+        tools["pg_dump"],
+        *_common_args(source_url),
+        "--format=custom",
+        "--file",
+        str(dump_path),
+        source_url.database,
+    ]
+    _run(
+        operation="pg_dump",
+        command=command,
+        environment=environment,
+        timeout=timeout,
+        password=password,
+        connection_urls=connection_urls,
+    )
+
+
+def _restore(
+    *,
+    tools: dict[str, str],
+    restore_url,
+    dump_path: Path,
+    environment: dict[str, str],
+    password: str | None,
+    connection_urls: tuple[str, ...],
+    timeout: float,
+) -> None:
+    _run(
+        operation="create_restore_database",
+        command=[
+            tools["createdb"],
+            *_common_args(restore_url),
+            restore_url.database,
+        ],
+        environment=environment,
+        timeout=timeout,
+        password=password,
+        connection_urls=connection_urls,
+    )
+    _run(
+        operation="pg_restore",
+        command=[
+            tools["pg_restore"],
+            *_common_args(restore_url),
+            "--dbname",
+            restore_url.database,
+            "--no-owner",
+            "--no-privileges",
+            str(dump_path),
+        ],
+        environment=environment,
+        timeout=timeout,
+        password=password,
+        connection_urls=connection_urls,
+    )
+
+
+# ── Verification ──────────────────────────────────────────────────────────────
+
+
+async def _verify(
+    source_url: str,
+    restore_url: str,
+) -> None:
     source = create_async_engine(source_url)
-    restore = create_async_engine(restore_url)
+    restore_engine = create_async_engine(restore_url)
     try:
-        async with source.connect() as source_connection, restore.connect() as restored:
-            assert await restored.scalar(text("SELECT version_num FROM alembic_version")) == "0001"
-            source_counts = []
-            restore_counts = []
+        async with restore_engine.begin() as restore:
+            source_counts: list[int] = []
+            restore_counts: list[int] = []
             for table in (
                 "agent_requests",
                 "agent_runs",
                 "audit_events",
                 "idempotency_records",
             ):
-                source_counts.append(
-                    int(await source_connection.scalar(text(f'SELECT count(*) FROM "{table}"')) or 0)
-                )
+                async with source.connect() as src:
+                    source_counts.append(
+                        int(await src.scalar(text(f'SELECT count(*) FROM "{table}"')) or 0)
+                    )
                 restore_counts.append(
-                    int(await restored.scalar(text(f'SELECT count(*) FROM "{table}"')) or 0)
+                    int(await restore.scalar(text(f'SELECT count(*) FROM "{table}"')) or 0)
                 )
             if restore_counts != source_counts:
-                raise RuntimeError("restored table counts do not match source")
+                raise PostgreSQLOperationError(
+                    operation="verify_restored_data",
+                    executable="sqlalchemy",
+                    return_code=-1,
+                    stderr_summary="restored table counts do not match source",
+                    failure_type="restored_data_verification_failed",
+                )
             snapshot_row = (
-                await restored.execute(
+                await restore.execute(
                     text(
                         "SELECT response_snapshot, response_snapshot_schema_version "
                         "FROM idempotency_records WHERE status = 'completed'"
@@ -448,13 +597,62 @@ async def _verify(source_url: str, restore_url: str) -> None:
                 replayed_at=datetime.now(timezone.utc),
             )
             if restored_result.orchestration.final_response != "synthetic backup result":
-                raise RuntimeError("restored replay snapshot did not reproduce the result")
-        integrity = await PersistenceIntegrityChecker(restore).check(full=True)
+                raise PostgreSQLOperationError(
+                    operation="verify_restored_data",
+                    executable="sqlalchemy",
+                    return_code=-1,
+                    stderr_summary="restored replay snapshot did not reproduce the result",
+                    failure_type="restored_data_verification_failed",
+                )
+        integrity = await PersistenceIntegrityChecker(restore_engine).check(full=True)
         if integrity.status != "healthy" or not integrity.complete:
-            raise RuntimeError("restored persistence integrity is not healthy")
+            raise PostgreSQLOperationError(
+                operation="integrity_check",
+                executable="sqlalchemy",
+                return_code=-1,
+                stderr_summary="restored persistence integrity is not healthy",
+                failure_type="persistence_integrity_failed",
+            )
     finally:
         await source.dispose()
-        await restore.dispose()
+        await restore_engine.dispose()
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+
+def _emit_success(
+    server_major: int,
+    client_versions: dict[str, int],
+    backup_bytes: int,
+    dump_seconds: float,
+    restore_seconds: float,
+    total_seconds: float,
+) -> None:
+    print("backup_restore_status=passed")
+    print(f"postgres_server_major={server_major}")
+    for name in ("pg_dump", "pg_restore", "createdb", "dropdb"):
+        print(f"{name}_major={client_versions[name]}")
+    print(f"backup_bytes={backup_bytes}")
+    print(f"backup_seconds={dump_seconds:.3f}")
+    print(f"restore_seconds={restore_seconds:.3f}")
+    print(f"total_seconds={total_seconds:.3f}")
+    print("cleanup_status=passed")
+    print("database_revision=0001")
+
+
+def _emit_failure(error: PostgreSQLOperationError) -> None:
+    print("backup_restore_status=failed")
+    print(f"backup_restore_failure_type={error.failure_type}")
+    print(f"backup_restore_failure_operation={error.operation}")
+    print(f"backup_restore_failure_tool={error.executable}")
+    print(f"backup_restore_failure_return_code={error.return_code}")
+    print(f"backup_restore_failure_message={error.stderr_summary}")
+
+
+def _emit_cleanup_warnings(failures: list[str]) -> None:
+    for i, f in enumerate(failures, start=1):
+        print(f"cleanup_failure_{i}={f}")
 
 
 def main() -> int:
@@ -463,122 +661,264 @@ def main() -> int:
     args = parser.parse_args()
     if args.timeout <= 0:
         parser.error("timeout must be positive")
-    source_url = os.getenv("CONVAGENT_POSTGRES_TEST_URL", "").strip()
-    if not source_url:
+
+    source_url_str = os.getenv("CONVAGENT_POSTGRES_TEST_URL", "").strip()
+    if not source_url_str:
         print("backup_restore_status=unavailable")
         return 2
+
+    source_url = make_url(source_url_str)
+    password = source_url.password
+    # Build connection URLs for sanitization (never printed)
+    source_conn = source_url.render_as_string(hide_password=False)
+    source_conn_safe = source_url.render_as_string(hide_password=True)
+
     try:
         tools = {name: _tool(name) for name in REQUIRED_TOOLS}
-    except RuntimeError:
-        print("backup_restore_status=client_tools_unavailable")
-        return 2
+    except PostgreSQLOperationError as exc:
+        _emit_failure(exc)
+        return 1
 
-    parsed = make_url(source_url)
-    if not parsed.database or "test" not in parsed.database.lower():
-        print("backup_restore_status=unsafe_source_database")
-        return 2
+    # Version preflight
+    try:
+        client_versions = _check_client_versions(tools)
+    except PostgreSQLOperationError as exc:
+        _emit_failure(exc)
+        return 1
+
+    client_majors = set(client_versions.values())
+    if len(client_majors) != 1:
+        _emit_failure(
+            PostgreSQLOperationError(
+                operation="version_preflight",
+                executable="pg_dump",
+                return_code=-1,
+                stderr_summary="client tool versions are not all the same major",
+                failure_type="client_server_version_mismatch",
+            )
+        )
+        for name in ("pg_dump", "pg_restore", "createdb", "dropdb"):
+            print(f"{name}_major={client_versions[name]}")
+        return 1
+
+    # Create temp source database, get server major
     suffix = uuid.uuid4().hex[:12]
     source_database = f"convagent_m14f_source_{suffix}"
+    source_url_with_db = source_url.set(database=source_database)
+    source_db_url_str = source_url_with_db.render_as_string(hide_password=False)
+    # Build restore URL from source URL (same host/port/user/password)
     restore_database = f"convagent_m14f_restore_{suffix}"
-    drill_source_url = parsed.set(database=source_database).render_as_string(
-        hide_password=False
-    )
-    restore_url = parsed.set(database=restore_database).render_as_string(
-        hide_password=False
-    )
-    environment = _connection_environment(parsed.password)
-    backup_path: Path | None = None
-    database_created = False
+    restore_url = source_url.set(database=restore_database)
+    restore_url_str = restore_url.render_as_string(hide_password=False)
+    connection_urls = (source_db_url_str, restore_url_str)
+
+    # State variables for cleanup control flow
+    exit_code = 1
+    primary_failure: PostgreSQLOperationError | None = None
+    cleanup_failures: list[str] = []
     source_database_created = False
+    restore_database_created = False
+    backup_path: Path | None = None
     started = time.monotonic()
+
     try:
-        descriptor, raw_path = tempfile.mkstemp(prefix="convagent-m14f-", suffix=".dump")
-        os.close(descriptor)
-        backup_path = Path(raw_path)
-        backup_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
-        _run(
-            [tools["createdb"], *_common_args(parsed), source_database],
-            environment=environment,
-            timeout=args.timeout,
-        )
-        source_database_created = True
-        alembic = AlembicConfig("alembic.ini")
-        alembic.set_main_option("sqlalchemy.url", drill_source_url)
-        alembic_command.upgrade(alembic, "head")
-        asyncio.run(_seed_source(drill_source_url, f"backup-{suffix}"))
-        dump_started = time.monotonic()
-        _run(
-            [
-                tools["pg_dump"],
-                *_common_args(parsed),
-                "--format=custom",
-                "--file",
-                str(backup_path),
-                source_database,
-            ],
-            environment=environment,
-            timeout=args.timeout,
-        )
-        dump_seconds = time.monotonic() - dump_started
-        _run(
-            [tools["createdb"], *_common_args(parsed), restore_database],
-            environment=environment,
-            timeout=args.timeout,
-        )
-        database_created = True
-        restore_started = time.monotonic()
-        _run(
-            [
-                tools["pg_restore"],
-                *_common_args(parsed),
-                "--exit-on-error",
-                "--dbname",
-                restore_database,
-                str(backup_path),
-            ],
-            environment=environment,
-            timeout=args.timeout,
-        )
-        asyncio.run(_verify(drill_source_url, restore_url))
-        restore_seconds = time.monotonic() - restore_started
-        print("backup_restore_status=passed")
-        print(f"backup_bytes={backup_path.stat().st_size}")
-        print(f"backup_seconds={dump_seconds:.3f}")
-        print(f"restore_seconds={restore_seconds:.3f}")
-        print(f"total_seconds={time.monotonic() - started:.3f}")
-        return 0
-    except Exception as exc:
-        print("backup_restore_status=failed")
-        print(f"backup_restore_failure_type={type(exc).__name__}")
-        if isinstance(exc, IntegrityError):
-            cause = getattr(exc.orig, "__cause__", None)
-            constraint_name = getattr(cause, "constraint_name", None)
-            print(
-                "backup_restore_failure_constraint="
-                f"{constraint_name if isinstance(constraint_name, str) else 'unavailable'}"
+        # Preflight: server version
+        try:
+            environment = _connection_environment(password)
+            _run(
+                operation="create_source_database",
+                command=[
+                    tools["createdb"],
+                    *_common_args(source_url_with_db),
+                    source_database,
+                ],
+                environment=environment,
+                timeout=min(args.timeout, 30.0),
+                password=password,
+                connection_urls=connection_urls,
             )
-        return 1
+            source_database_created = True
+            server_major = asyncio.run(
+                _get_server_major(source_url_with_db.render_as_string(hide_password=False))
+            )
+        except PostgreSQLOperationError as exc:
+            primary_failure = exc
+            raise
+
+        client_major = next(iter(client_majors))
+        if client_major != server_major:
+            primary_failure = PostgreSQLOperationError(
+                operation="version_preflight",
+                executable="pg_dump",
+                return_code=-1,
+                stderr_summary=(
+                    f"client major {client_major} != server major {server_major}"
+                ),
+                failure_type="client_server_version_mismatch",
+            )
+            print(f"postgres_server_major={server_major}")
+            for name in ("pg_dump", "pg_restore", "createdb", "dropdb"):
+                print(f"{name}_major={client_versions[name]}")
+            raise primary_failure
+
+        # Migration
+        try:
+            alembic_cfg = AlembicConfig()
+            alembic_cfg.set_main_option(
+                "sqlalchemy.url",
+                source_url_with_db.render_as_string(hide_password=False),
+            )
+            alembic_cfg.set_main_option("script_location", "alembic")
+            alembic_command.upgrade(alembic_cfg, "head")
+        except Exception as exc:
+            primary_failure = PostgreSQLOperationError(
+                operation="migration",
+                executable="alembic",
+                return_code=-1,
+                stderr_summary=f"migration upgrade failed: {type(exc).__name__}",
+                failure_type="migration_upgrade_failed",
+            )
+            raise primary_failure from exc
+
+        # Seed
+        try:
+            asyncio.run(
+                _seed_source(
+                    source_url_with_db.render_as_string(hide_password=False),
+                    prefix=f"m14f_{suffix}",
+                )
+            )
+        except PostgreSQLOperationError as exc:
+            primary_failure = exc
+            raise
+
+        # Dump
+        dump_started = time.monotonic()
+        backup_path = Path(tempfile.mktemp(suffix=".dump", prefix="convagent-m14f-"))
+        try:
+            _dump(
+                tools=tools,
+                source_url=source_url_with_db,
+                dump_path=backup_path,
+                environment=environment,
+                password=password,
+                connection_urls=connection_urls,
+                timeout=args.timeout,
+            )
+        except PostgreSQLOperationError as exc:
+            primary_failure = exc
+            raise
+        dump_seconds = time.monotonic() - dump_started
+
+        # Restore
+        restore_started = time.monotonic()
+        try:
+            _restore(
+                tools=tools,
+                restore_url=restore_url,
+                dump_path=backup_path,
+                environment=environment,
+                password=password,
+                connection_urls=connection_urls,
+                timeout=args.timeout,
+            )
+            restore_database_created = True
+        except PostgreSQLOperationError as exc:
+            primary_failure = exc
+            raise
+        restore_seconds = time.monotonic() - restore_started
+
+        # Verify
+        try:
+            asyncio.run(
+                _verify(
+                    source_url_with_db.render_as_string(hide_password=False),
+                    restore_url_str,
+                )
+            )
+        except PostgreSQLOperationError as exc:
+            primary_failure = exc
+            raise
+
+        # Success
+        total_seconds = time.monotonic() - started
+        _emit_success(
+            server_major=server_major,
+            client_versions=client_versions,
+            backup_bytes=backup_path.stat().st_size,
+            dump_seconds=dump_seconds,
+            restore_seconds=restore_seconds,
+            total_seconds=total_seconds,
+        )
+        exit_code = 0
+
+    except PostgreSQLOperationError:
+        pass  # primary_failure already set
+    except Exception as exc:
+        primary_failure = PostgreSQLOperationError(
+            operation="unknown",
+            executable="python",
+            return_code=-1,
+            stderr_summary=f"unexpected error: {type(exc).__name__}",
+            failure_type="unexpected_error",
+        )
     finally:
-        if database_created:
+        # Cleanup - never overrides primary failure
+        if restore_database_created:
             try:
                 _run(
-                    [tools["dropdb"], *_common_args(parsed), "--if-exists", restore_database],
+                    operation="drop_restore_database",
+                    command=[
+                        tools["dropdb"],
+                        *_common_args(restore_url),
+                        "--if-exists",
+                        restore_database,
+                    ],
                     environment=environment,
                     timeout=min(args.timeout, 30.0),
+                    password=password,
+                    connection_urls=connection_urls,
                 )
-            except (RuntimeError, subprocess.TimeoutExpired):
-                print("restore_database_cleanup=failed")
+            except PostgreSQLOperationError:
+                cleanup_failures.append("drop_restore_database")
         if source_database_created:
             try:
                 _run(
-                    [tools["dropdb"], *_common_args(parsed), "--if-exists", source_database],
+                    operation="drop_source_database",
+                    command=[
+                        tools["dropdb"],
+                        *_common_args(source_url_with_db),
+                        "--if-exists",
+                        source_database,
+                    ],
                     environment=environment,
                     timeout=min(args.timeout, 30.0),
+                    password=password,
+                    connection_urls=connection_urls,
                 )
-            except (RuntimeError, subprocess.TimeoutExpired):
-                print("source_database_cleanup=failed")
-        if backup_path is not None:
-            backup_path.unlink(missing_ok=True)
+            except PostgreSQLOperationError:
+                cleanup_failures.append("drop_source_database")
+        if backup_path is not None and backup_path.exists():
+            try:
+                backup_path.unlink()
+            except OSError:
+                cleanup_failures.append("unlink_dump_file")
+
+    # Emit results
+    if primary_failure is not None:
+        _emit_failure(primary_failure)
+        if cleanup_failures:
+            _emit_cleanup_warnings(cleanup_failures)
+        return 1
+
+    if cleanup_failures:
+        # Main succeeded but cleanup failed
+        print("backup_restore_status=failed")
+        print("backup_restore_failure_type=cleanup_failed")
+        _emit_cleanup_warnings(cleanup_failures)
+        return 1
+
+    return exit_code
 
 
 if __name__ == "__main__":
