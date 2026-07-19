@@ -97,6 +97,13 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
+      - name: Install PostgreSQL 17 client tools
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          /usr/lib/postgresql/17/bin/pg_dump --version
       - name: Install frozen development dependencies
         run: |
           uv lock --check
@@ -119,6 +126,8 @@ jobs:
           --required-test test_bounded_pool_soak_releases_all_connections
           --required-test test_ephemeral_database_role_ownership_and_runtime_permissions
       - name: Run bounded logical backup and fresh-database restore
+        env:
+          PATH: /usr/lib/postgresql/17/bin:$PATH
         run: uv run --frozen --extra dev python scripts/postgres_backup_restore_drill.py --timeout 120
       - name: Verify final migration revision
         run: |
