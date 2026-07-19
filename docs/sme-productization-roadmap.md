@@ -359,10 +359,6 @@ phase14_tracked_files_scan = blocked_git_unavailable
 phase14_git_history_scan = blocked_git_unavailable
 phase14_runtime_attestation = protected_job_only
 ```
-# Phase 14-G Repository Baseline
+# Phase 14-G 仓库基线（Repository Baseline）
 
-Phase 14-G is the next controlled gate after Phase 14-F preflight hardening. It
-creates a one-shot trusted Git root baseline and binds it to a non-authoritative
-Discovery run, a protected Formal run, and an independently verified GitHub
-artifact. It does not close the DashScope credential incident and does not
-change database revision `0001`.
+Phase 14-G 是 Phase 14-F 预检加固之后的下一个受控门禁。它创建一次性可信 Git 根基线，并将其绑定到非权威 Discovery（发现阶段）运行、受保护 Formal（正式阶段）运行和独立验证的 GitHub Artifact（制品）。它不关闭 DashScope 凭据事故，也不更改数据库 revision（版本号）`0001`。
