@@ -449,7 +449,7 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                     operation="v1.chat",
                     status="completed",
                     claim_version=1,
-                    owner_request_id=str(replay_request),
+                    owner_request_id=f"{prefix}-replay",
                     request_fingerprint=replay_fingerprint,
                     fingerprint_version=2,
                     completed_run_record_id=completed_run,
