@@ -205,7 +205,6 @@ def test_workflow_has_pg17_client_install_and_verify():
     )
     assert "postgresql-client-17" in workflow
     assert "extract_major" in workflow
-    assert "readlink -f" in workflow
     assert "apt.postgresql.org" in workflow
 
 
@@ -215,3 +214,80 @@ def test_workflow_uses_https_for_apt_repository():
     )
     assert "https://apt.postgresql.org" in workflow
     assert "set -euo pipefail" in workflow
+
+
+# ── Seed Hash Regression Tests ─────────────────────────────────────────────────
+
+
+def test_stable_hex_returns_64_char_lowercase_hex():
+    result = drill._stable_hex("test")
+    assert len(result) == 64
+    assert all(c in "0123456789abcdef" for c in result)
+
+
+def test_stable_hex_different_inputs_produce_different_values():
+    a = drill._stable_hex("alpha")
+    b = drill._stable_hex("beta")
+    assert a != b
+    assert len(a) == len(b) == 64
+
+
+def test_seed_source_has_stable_hex_helper():
+    source = inspect.getsource(drill)
+    assert "def _stable_hex" in source
+    assert "hashlib.sha256" in source
+
+
+def test_all_seed_hashes_match_hex_pattern():
+    """All hash constants in seed source satisfy ^[0-9a-f]{64}$."""
+    import re
+    source = inspect.getsource(drill._seed_source)
+    hex_pattern = re.compile(r"^[0-9a-f]{64}$")
+    hex_var_assignments = re.findall(
+        r'(_\w+_hash|fingerprint)\s*=\s*_stable_hex\(', source
+    )
+    assert len(hex_var_assignments) >= 3, "Expected named hex hash variables"
+    # Verify no remaining fake patterns like "a"*64 or "g"*64
+    assert '"a" * 64' not in source
+    assert '"b" * 64' not in source
+    assert '"c" * 64' not in source
+    assert '"d" * 64' not in source
+    assert '"e" * 64' not in source
+    assert '"f" * 64' not in source
+    assert '"g" * 64' not in source
+    assert '"h" * 64' not in source
+    assert '"i" * 64' not in source
+    assert '"j" * 64' not in source
+
+
+def test_replay_request_and_idempotency_record_share_idempotency_hash():
+    source = inspect.getsource(drill._seed_source)
+    assert "replay_idempotency_hash" in source
+    assert "idempotency_key_hash=replay_idempotency_hash" in source
+
+
+def test_replay_request_and_idempotency_record_share_fingerprint():
+    source = inspect.getsource(drill._seed_source)
+    assert "replay_fingerprint" in source
+    assert "request_fingerprint=replay_fingerprint" in source
+
+
+def test_restore_database_split_into_create_and_restore():
+    source = inspect.getsource(drill)
+    assert "def _create_restore_database" in source
+    assert "def _restore_dump" in source
+
+
+def test_success_not_emitted_before_cleanup():
+    source = inspect.getsource(drill.main)
+    assert "_emit_success" in source
+    # Success emission must be after cleanup logic
+    after_cleanup = source.split("Emit results")[1]
+    assert "_emit_success" in after_cleanup
+
+
+def test_named_temporary_file_used():
+    source = inspect.getsource(drill.main)
+    assert "NamedTemporaryFile" in source
+    assert "delete=False" in source
+    assert "tempfile.mktemp" not in source

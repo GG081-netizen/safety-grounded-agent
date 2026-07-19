@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import os
 import re
 import shutil
@@ -102,6 +103,11 @@ def sanitize_diagnostic(
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
+
+def _stable_hex(value: str) -> str:
+    """Return a deterministic 64-char lowercase hex hash for seed data."""
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def _replay_context(now: datetime) -> RequestContext:
@@ -300,6 +306,19 @@ async def _seed_source(source_url: str, prefix: str) -> None:
     engine = create_async_engine(source_url)
     now = datetime.now(timezone.utc)
     created = now - timedelta(hours=2)
+
+    # Deterministic hex hashes for seed data (all satisfy ^[0-9a-f]{64}$)
+    completed_user_text_hash = _stable_hex(f"{prefix}-completed-text")
+    completed_idempotency_hash = _stable_hex(f"{prefix}-completed-idem")
+    completed_fingerprint = _stable_hex(f"{prefix}-completed-fp")
+    blocked_user_text_hash = _stable_hex(f"{prefix}-blocked-text")
+    blocked_fingerprint = _stable_hex(f"{prefix}-blocked-fp")
+    failed_user_text_hash = _stable_hex(f"{prefix}-failed-text")
+    failed_fingerprint = _stable_hex(f"{prefix}-failed-fp")
+    replay_user_text_hash = _stable_hex(f"{prefix}-replay-text")
+    replay_idempotency_hash = _stable_hex(f"{prefix}-replay-idem")
+    replay_fingerprint = _stable_hex(f"{prefix}-replay-fp")
+
     try:
         async with engine.begin() as connection:
             completed_request = await connection.scalar(
@@ -311,10 +330,10 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                     tenant_id="backup-tenant",
                     organization_id="backup-org",
                     status="completed",
-                    user_text_hash="a" * 64,
+                    user_text_hash=completed_user_text_hash,
                     user_text_length=9,
-                    idempotency_key_hash="b" * 64,
-                    request_fingerprint="c" * 64,
+                    idempotency_key_hash=completed_idempotency_hash,
+                    request_fingerprint=completed_fingerprint,
                     fingerprint_version=2,
                     authorization_snapshot={"allowed": True},
                     authorization_snapshot_schema_version=1,
@@ -344,9 +363,9 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                     tenant_id="backup-tenant",
                     organization_id="backup-org",
                     status="completed",
-                    user_text_hash="d" * 64,
+                    user_text_hash=blocked_user_text_hash,
                     user_text_length=7,
-                    request_fingerprint="e" * 64,
+                    request_fingerprint=blocked_fingerprint,
                     fingerprint_version=2,
                     authorization_snapshot={"allowed": True},
                     authorization_snapshot_schema_version=1,
@@ -378,9 +397,9 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                     organization_id="backup-org",
                     status="failed",
                     failure_code="application_execution_error",
-                    user_text_hash="f" * 64,
+                    user_text_hash=failed_user_text_hash,
                     user_text_length=5,
-                    request_fingerprint="g" * 64,
+                    request_fingerprint=failed_fingerprint,
                     fingerprint_version=2,
                     authorization_snapshot={"allowed": True},
                     authorization_snapshot_schema_version=1,
@@ -411,10 +430,10 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                     tenant_id="backup-tenant",
                     organization_id="backup-org",
                     status="completed",
-                    user_text_hash="h" * 64,
+                    user_text_hash=replay_user_text_hash,
                     user_text_length=8,
-                    idempotency_key_hash="i" * 64,
-                    request_fingerprint="j" * 64,
+                    idempotency_key_hash=replay_idempotency_hash,
+                    request_fingerprint=replay_fingerprint,
                     fingerprint_version=2,
                     authorization_snapshot={"allowed": True},
                     authorization_snapshot_schema_version=1,
@@ -427,12 +446,12 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                     tenant_id="backup-tenant",
                     organization_id="backup-org",
                     principal_user_id="backup-user",
-                    idempotency_key_hash="i" * 64,
+                    idempotency_key_hash=replay_idempotency_hash,
                     operation="v1.chat",
                     status="completed",
                     claim_version=1,
                     owner_request_id=str(replay_request),
-                    request_fingerprint="j" * 64,
+                    request_fingerprint=replay_fingerprint,
                     fingerprint_version=2,
                     completed_run_record_id=completed_run,
                     response_snapshot={
@@ -507,11 +526,10 @@ def _dump(
     )
 
 
-def _restore(
+def _create_restore_database(
     *,
     tools: dict[str, str],
     restore_url,
-    dump_path: Path,
     environment: dict[str, str],
     password: str | None,
     connection_urls: tuple[str, ...],
@@ -529,6 +547,18 @@ def _restore(
         password=password,
         connection_urls=connection_urls,
     )
+
+
+def _restore_dump(
+    *,
+    tools: dict[str, str],
+    restore_url,
+    dump_path: Path,
+    environment: dict[str, str],
+    password: str | None,
+    connection_urls: tuple[str, ...],
+    timeout: float,
+) -> None:
     _run(
         operation="pg_restore",
         command=[
@@ -794,7 +824,10 @@ def main() -> int:
 
         # Dump
         dump_started = time.monotonic()
-        backup_path = Path(tempfile.mktemp(suffix=".dump", prefix="convagent-m14f-"))
+        with tempfile.NamedTemporaryFile(
+            suffix=".dump", prefix="convagent-m14f-", delete=False
+        ) as tmpf:
+            backup_path = Path(tmpf.name)
         try:
             _dump(
                 tools=tools,
@@ -810,10 +843,19 @@ def main() -> int:
             raise
         dump_seconds = time.monotonic() - dump_started
 
-        # Restore
+        # Restore: create database first, mark state immediately
         restore_started = time.monotonic()
         try:
-            _restore(
+            _create_restore_database(
+                tools=tools,
+                restore_url=restore_url,
+                environment=environment,
+                password=password,
+                connection_urls=connection_urls,
+                timeout=args.timeout,
+            )
+            restore_database_created = True
+            _restore_dump(
                 tools=tools,
                 restore_url=restore_url,
                 dump_path=backup_path,
@@ -822,7 +864,6 @@ def main() -> int:
                 connection_urls=connection_urls,
                 timeout=args.timeout,
             )
-            restore_database_created = True
         except PostgreSQLOperationError as exc:
             primary_failure = exc
             raise
@@ -840,16 +881,9 @@ def main() -> int:
             primary_failure = exc
             raise
 
-        # Success
+        # Success — save values for emission after cleanup
         total_seconds = time.monotonic() - started
-        _emit_success(
-            server_major=server_major,
-            client_versions=client_versions,
-            backup_bytes=backup_path.stat().st_size,
-            dump_seconds=dump_seconds,
-            restore_seconds=restore_seconds,
-            total_seconds=total_seconds,
-        )
+        backup_bytes = backup_path.stat().st_size
         exit_code = 0
 
     except PostgreSQLOperationError:
@@ -904,7 +938,7 @@ def main() -> int:
             except OSError:
                 cleanup_failures.append("unlink_dump_file")
 
-    # Emit results
+    # Emit results — success only after cleanup passes
     if primary_failure is not None:
         _emit_failure(primary_failure)
         if cleanup_failures:
@@ -918,6 +952,15 @@ def main() -> int:
         _emit_cleanup_warnings(cleanup_failures)
         return 1
 
+    # All good — emit success last
+    _emit_success(
+        server_major=server_major,
+        client_versions=client_versions,
+        backup_bytes=backup_bytes,
+        dump_seconds=dump_seconds,
+        restore_seconds=restore_seconds,
+        total_seconds=total_seconds,
+    )
     return exit_code
 
 
