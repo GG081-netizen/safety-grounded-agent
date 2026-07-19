@@ -106,12 +106,16 @@ def _run(command: list[str], *, environment: dict[str, str], timeout: float) -> 
         env=environment,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
         timeout=timeout,
         check=False,
     )
     if completed.returncode != 0:
-        raise RuntimeError("PostgreSQL client operation failed")
+        stderr_text = completed.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(
+            f"PostgreSQL client operation failed: {' '.join(command)} — "
+            f"{stderr_text if stderr_text else 'no stderr output'}"
+        )
 
 
 async def _seed_source(source_url: str, prefix: str) -> None:
