@@ -103,7 +103,7 @@ jobs:
           set -euo pipefail
           sudo install -d -m 0755 /usr/share/postgresql-common/pgdg
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
-            | sudo gpg --dearmor \
+            | sudo gpg --dearmor --batch \
                 -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list
@@ -121,10 +121,6 @@ jobs:
           command -v pg_restore
           command -v createdb
           command -v dropdb
-          readlink -f "$(command -v pg_dump)"
-          readlink -f "$(command -v pg_restore)"
-          readlink -f "$(command -v createdb)"
-          readlink -f "$(command -v dropdb)"
           test "$(extract_major pg_dump)" = "17"
           test "$(extract_major pg_restore)" = "17"
           test "$(extract_major createdb)" = "17"
