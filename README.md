@@ -107,6 +107,8 @@ uv run python scripts/generate_portfolio_examples.py --check
 | `convagent eval rag-adapter --strict` | External/Fallback RAG、citation/evidence 和 raw response 边界 |
 | `convagent eval production-blockers --scope implementation --strict` | Secret、并发隔离和 Policy 技术修复；不表示事故已关闭 |
 
+完整评测快照见：[`docs/evaluation/portfolio_release_results.md`](docs/evaluation/portfolio_release_results.md)。
+
 默认分支由以下五个稳定 Check 保护：
 
 ```text
