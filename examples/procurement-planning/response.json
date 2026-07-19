@@ -1,0 +1,191 @@
+{
+  "debug": null,
+  "request_id": "req-demo-procurement-001",
+  "result": {
+    "citations": [
+      {
+        "confidence": 0.92,
+        "source_id": "WS_SPEC_2025",
+        "source_path": "knowledge://procurement/workstation-specs",
+        "title": "研发工作站配置建议"
+      },
+      {
+        "confidence": 0.88,
+        "source_id": "BUDGET_GUIDE",
+        "source_path": "knowledge://procurement/budget-guide",
+        "title": "IT采购预算指南 v2.1"
+      },
+      {
+        "confidence": 0.85,
+        "source_id": "VENDOR_COMPARE",
+        "source_path": "knowledge://procurement/vendor-compare",
+        "title": "主流工作站供应商对比"
+      }
+    ],
+    "confidence": 0.82,
+    "final_response": "为80名研发人员规划工作站采购建议：\n\n1. 推荐配置：CPU 8核16线程 / 内存32GB / NVMe SSD 1TB，单机预算6000-6800元可满足IDE、Docker和轻量本地模型需求。\n2. 建议分两批采购：第一批40台给核心开发，第二批40台给其他人员，批量采购可争取折扣。\n3. 优先选择联想ThinkStation或戴尔Precision Linux预装型号。\n4. 预留每台200-400元用于3年保修升级。\n\n以上建议基于内部配置指南和供应商对比数据，具体价格以实际询价为准。\n\n置信度：0.82\n引用来源：\n- WS_SPEC_2025：研发工作站配置建议\n- BUDGET_GUIDE：IT采购预算指南 v2.1\n- VENDOR_COMPARE：主流工作站供应商对比",
+    "intent_result": {
+      "alternative_intents": [],
+      "confidence": 1.0,
+      "intent": "customer_intake",
+      "reasoning": "命中关键词: 预算、采购"
+    },
+    "metadata": {
+      "cost_usd": 0.0,
+      "input_tokens": 0,
+      "intent": "customer_intake",
+      "intent_confidence": 1.0,
+      "latency_ms": 0,
+      "llm_calls": 0,
+      "output_tokens": 0,
+      "session_id": "demo-procurement-001",
+      "timestamp": "2026-01-01T00:00:00Z",
+      "tools_called": [
+        "policy_engine",
+        "router",
+        "rag_query"
+      ]
+    },
+    "policy": {
+      "classifier_used": false,
+      "confidence": 0.72,
+      "matched_rules": [],
+      "reason": "未命中本地安全规则",
+      "status": "SAFE",
+      "warnings": []
+    },
+    "rag_result": {
+      "answer": "为80名研发人员规划工作站采购建议：\n\n1. 推荐配置：CPU 8核16线程 / 内存32GB / NVMe SSD 1TB，单机预算6000-6800元可满足IDE、Docker和轻量本地模型需求。\n2. 建议分两批采购：第一批40台给核心开发，第二批40台给其他人员，批量采购可争取折扣。\n3. 优先选择联想ThinkStation或戴尔Precision Linux预装型号。\n4. 预留每台200-400元用于3年保修升级。\n\n以上建议基于内部配置指南和供应商对比数据，具体价格以实际询价为准。",
+      "confidence": 0.82,
+      "diagnostics": [
+        {
+          "error_type": null,
+          "latency_ms": 15.0,
+          "message": "Portfolio RAG returned procurement advice with 3 citations",
+          "provider": "deterministic_portfolio_rag",
+          "step_name": "rag_query",
+          "success": true
+        }
+      ],
+      "evidence": [
+        {
+          "metadata": {},
+          "score": 0.92,
+          "source_id": "WS_SPEC_2025",
+          "source_path": "knowledge://procurement/workstation-specs",
+          "text": "研发工作站建议配置：CPU 8核16线程以上，内存32GB+，NVMe SSD 1TB，GPU可选用于轻量本地模型推理。单机预算6000-7000元可覆盖中高端配置。",
+          "title": "研发工作站配置建议"
+        },
+        {
+          "metadata": {},
+          "score": 0.88,
+          "source_id": "BUDGET_GUIDE",
+          "source_path": "knowledge://procurement/budget-guide",
+          "text": "80人研发团队建议分批采购，优先保障核心开发人员配置。批量采购可争取3-5%价格折扣，包含3年原厂保修。",
+          "title": "IT采购预算指南 v2.1"
+        },
+        {
+          "metadata": {},
+          "score": 0.85,
+          "source_id": "VENDOR_COMPARE",
+          "source_path": "knowledge://procurement/vendor-compare",
+          "text": "联想ThinkStation、戴尔Precision、惠普Z系列均在预算范围内。建议选择Linux预装型号，Docker兼容性更佳。",
+          "title": "主流工作站供应商对比"
+        }
+      ],
+      "provider": "deterministic_portfolio_rag",
+      "sources": [
+        {
+          "confidence": 0.92,
+          "source_id": "WS_SPEC_2025",
+          "source_path": "knowledge://procurement/workstation-specs",
+          "title": "研发工作站配置建议"
+        },
+        {
+          "confidence": 0.88,
+          "source_id": "BUDGET_GUIDE",
+          "source_path": "knowledge://procurement/budget-guide",
+          "title": "IT采购预算指南 v2.1"
+        },
+        {
+          "confidence": 0.85,
+          "source_id": "VENDOR_COMPARE",
+          "source_path": "knowledge://procurement/vendor-compare",
+          "title": "主流工作站供应商对比"
+        }
+      ],
+      "warnings": []
+    },
+    "session_id": "demo-procurement-001",
+    "task_route": {
+      "confidence": 1.0,
+      "reason": "命令显式指定执行任务",
+      "task": "qa"
+    },
+    "timestamp": "2026-01-01T00:00:00Z",
+    "trace": [
+      {
+        "confidence": 0.72,
+        "input_summary": "为80名研发人员规划办公工作站，主要用于IDE、Docker和轻量本地模型，单机预算不超过7000元，请给出采购建议。",
+        "latency_ms": 0,
+        "output_summary": "SAFE: 未命中本地安全规则",
+        "step_name": "policy_engine",
+        "tool_calls": [],
+        "warnings": []
+      },
+      {
+        "confidence": 1.0,
+        "input_summary": "intent=customer_intake",
+        "latency_ms": 0,
+        "output_summary": "task=qa: 命令显式指定执行任务",
+        "step_name": "router",
+        "tool_calls": [],
+        "warnings": []
+      },
+      {
+        "confidence": 0.82,
+        "input_summary": "为80名研发人员规划办公工作站，主要用于IDE、Docker和轻量本地模型，单机预算不超过7000元，请给出采购建议。",
+        "latency_ms": 15,
+        "output_summary": "Portfolio RAG returned procurement advice with 3 citations",
+        "step_name": "rag_query",
+        "tool_calls": [],
+        "warnings": []
+      }
+    ],
+    "user_input": "为80名研发人员规划办公工作站，主要用于IDE、Docker和轻量本地模型，单机预算不超过7000元，请给出采购建议。"
+  },
+  "session_id": "demo-procurement-001",
+  "trace": [
+    {
+      "code": "authenticated",
+      "component": "authentication",
+      "status": "succeeded",
+      "summary": "Authentication succeeded."
+    },
+    {
+      "code": "allowed",
+      "component": "authorization",
+      "status": "succeeded",
+      "summary": "Authorization succeeded."
+    },
+    {
+      "code": "policy_engine",
+      "component": "policy_engine",
+      "status": "succeeded",
+      "summary": "SAFE: 未命中本地安全规则"
+    },
+    {
+      "code": "router",
+      "component": "router",
+      "status": "succeeded",
+      "summary": "task=qa: 命令显式指定执行任务"
+    },
+    {
+      "code": "rag_query",
+      "component": "rag_query",
+      "status": "succeeded",
+      "summary": "Portfolio RAG returned procurement advice with 3 citations"
+    }
+  ],
+  "trace_id": "trace-demo-procurement-001"
+}

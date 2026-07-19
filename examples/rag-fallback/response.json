@@ -1,0 +1,183 @@
+{
+  "debug": null,
+  "request_id": "req-demo-fallback-001",
+  "result": {
+    "citations": [
+      {
+        "confidence": 0.68,
+        "source_id": "LOCAL_PROCUREMENT_GUIDE",
+        "source_path": "data/knowledge/procurement/laptop_guide.json",
+        "title": "本地采购知识库：笔记本选型指南"
+      }
+    ],
+    "confidence": 0.55,
+    "final_response": "本地知识库建议：笔记本批量采购需确认供应商SLA、批量折扣政策和售后响应时间。建议联系至少3家供应商比价，并签订包含交付期限和验收标准的框架协议。\n\n置信度：0.55\n引用来源：\n- LOCAL_PROCUREMENT_GUIDE：本地采购知识库：笔记本选型指南\n提示：External RAG unavailable; used local keyword fallback.",
+    "intent_result": {
+      "alternative_intents": [],
+      "confidence": 1.0,
+      "intent": "customer_intake",
+      "reasoning": "命中关键词: 采购"
+    },
+    "metadata": {
+      "cost_usd": 0.0,
+      "input_tokens": 0,
+      "intent": "customer_intake",
+      "intent_confidence": 1.0,
+      "latency_ms": 0,
+      "llm_calls": 0,
+      "output_tokens": 0,
+      "session_id": "demo-fallback-001",
+      "timestamp": "2026-01-01T00:00:00Z",
+      "tools_called": [
+        "policy_engine",
+        "router",
+        "external_rag_query",
+        "local_rag_fallback"
+      ]
+    },
+    "policy": {
+      "classifier_used": false,
+      "confidence": 0.72,
+      "matched_rules": [],
+      "reason": "未命中本地安全规则",
+      "status": "SAFE",
+      "warnings": []
+    },
+    "rag_result": {
+      "answer": "本地知识库建议：笔记本批量采购需确认供应商SLA、批量折扣政策和售后响应时间。建议联系至少3家供应商比价，并签订包含交付期限和验收标准的框架协议。",
+      "confidence": 0.55,
+      "diagnostics": [
+        {
+          "error_type": "timeout",
+          "latency_ms": 0.0,
+          "message": "RAG service timeout after 30s",
+          "provider": "external",
+          "step_name": "external_rag_query",
+          "success": false
+        },
+        {
+          "error_type": null,
+          "latency_ms": 4.0,
+          "message": "Local keyword RAG returned 1 evidence item",
+          "provider": "local",
+          "step_name": "local_rag_fallback",
+          "success": true
+        }
+      ],
+      "evidence": [
+        {
+          "metadata": {},
+          "score": 0.68,
+          "source_id": "LOCAL_PROCUREMENT_GUIDE",
+          "source_path": "data/knowledge/procurement/laptop_guide.json",
+          "text": "笔记本批量采购应关注：CPU代际、内存扩展能力、售后响应SLA、驱动兼容性。建议确认供应商是否提供批量折扣和预装系统服务。",
+          "title": "本地采购知识库：笔记本选型指南"
+        }
+      ],
+      "provider": "fallback",
+      "sources": [
+        {
+          "confidence": 0.68,
+          "source_id": "LOCAL_PROCUREMENT_GUIDE",
+          "source_path": "data/knowledge/procurement/laptop_guide.json",
+          "title": "本地采购知识库：笔记本选型指南"
+        }
+      ],
+      "warnings": [
+        "External RAG unavailable; used local keyword fallback."
+      ]
+    },
+    "session_id": "demo-fallback-001",
+    "task_route": {
+      "confidence": 1.0,
+      "reason": "命令显式指定执行任务",
+      "task": "qa"
+    },
+    "timestamp": "2026-01-01T00:00:00Z",
+    "trace": [
+      {
+        "confidence": 0.72,
+        "input_summary": "笔记本批量采购需要注意什么？",
+        "latency_ms": 0,
+        "output_summary": "SAFE: 未命中本地安全规则",
+        "step_name": "policy_engine",
+        "tool_calls": [],
+        "warnings": []
+      },
+      {
+        "confidence": 1.0,
+        "input_summary": "intent=customer_intake",
+        "latency_ms": 0,
+        "output_summary": "task=qa: 命令显式指定执行任务",
+        "step_name": "router",
+        "tool_calls": [],
+        "warnings": []
+      },
+      {
+        "confidence": 0.0,
+        "input_summary": "笔记本批量采购需要注意什么？",
+        "latency_ms": 0,
+        "output_summary": "RAG service timeout after 30s",
+        "step_name": "external_rag_query",
+        "tool_calls": [
+          "POST /query"
+        ],
+        "warnings": [
+          "External RAG unavailable; used local keyword fallback."
+        ]
+      },
+      {
+        "confidence": 0.55,
+        "input_summary": "笔记本批量采购需要注意什么？",
+        "latency_ms": 4,
+        "output_summary": "Local keyword RAG returned 1 evidence item",
+        "step_name": "local_rag_fallback",
+        "tool_calls": [],
+        "warnings": [
+          "External RAG unavailable; used local keyword fallback."
+        ]
+      }
+    ],
+    "user_input": "笔记本批量采购需要注意什么？"
+  },
+  "session_id": "demo-fallback-001",
+  "trace": [
+    {
+      "code": "authenticated",
+      "component": "authentication",
+      "status": "succeeded",
+      "summary": "Authentication succeeded."
+    },
+    {
+      "code": "allowed",
+      "component": "authorization",
+      "status": "succeeded",
+      "summary": "Authorization succeeded."
+    },
+    {
+      "code": "policy_engine",
+      "component": "policy_engine",
+      "status": "succeeded",
+      "summary": "SAFE: 未命中本地安全规则"
+    },
+    {
+      "code": "router",
+      "component": "router",
+      "status": "succeeded",
+      "summary": "task=qa: 命令显式指定执行任务"
+    },
+    {
+      "code": "external_rag_query",
+      "component": "external_rag_query",
+      "status": "succeeded",
+      "summary": "RAG service timeout after 30s"
+    },
+    {
+      "code": "local_rag_fallback",
+      "component": "local_rag_fallback",
+      "status": "succeeded",
+      "summary": "Local keyword RAG returned 1 evidence item"
+    }
+  ],
+  "trace_id": "trace-demo-fallback-003"
+}
