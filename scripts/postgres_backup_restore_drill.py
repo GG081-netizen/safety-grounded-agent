@@ -412,7 +412,6 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                     run_id=f"{prefix}-failed-run",
                     original_request_id=failed_request,
                     status="failed",
-                    failure_code="application_execution_error",
                     result_snapshot={"error": "synthetic failure"},
                     result_snapshot_schema_version=1,
                     trace_snapshot={"stages": []},
