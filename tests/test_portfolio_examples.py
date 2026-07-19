@@ -95,8 +95,8 @@ def test_ids_consistent_across_files():
         assert tid == resp.get("trace_id") == trace.get("trace_id"), f"{scenario}: trace_id mismatch"
 
 
-def test_generation_is_deterministic_same_process():
-    """Two independent subprocess runs produce byte-identical output."""
+def test_generation_is_byte_identical_across_processes():
+    """Two independent CLI subprocess runs produce byte-identical output."""
     import tempfile
     tmp_a = Path(tempfile.mkdtemp(prefix="det-a-"))
     tmp_b = Path(tempfile.mkdtemp(prefix="det-b-"))
@@ -232,6 +232,18 @@ def test_guard_blocks_external_rag_factory():
         _uninstall_guards()
 
 
+def test_guard_blocks_external_rag_direct_construction():
+    """Direct ExternalRagClient construction must fail immediately at __init__."""
+    from scripts.generate_portfolio_examples import _install_guards, _uninstall_guards
+    _install_guards()
+    try:
+        import conversation_agent.rag.external_client as rec
+        with pytest.raises(RuntimeError, match="blocked"):
+            rec.ExternalRagClient("http://127.0.0.1:8001")
+    finally:
+        _uninstall_guards()
+
+
 def test_guard_blocks_create_llm_client():
     from scripts.generate_portfolio_examples import _install_guards, _uninstall_guards
     _install_guards()
@@ -262,11 +274,14 @@ def test_guard_restores_on_exit():
     import conversation_agent.rag.factory as rf
     import conversation_agent.llm.factory as lf
 
+    import conversation_agent.rag.external_client as rec
     orig_get_config = cfg.get_config
     orig_create_rag = rf.create_rag_client
     orig_create_llm = lf.create_llm_client
     orig_conn = socket.create_connection
     orig_httpx_post = httpx.post
+    orig_ext_rag_def = rec.ExternalRagClient
+    orig_ext_rag_factory = rf.ExternalRagClient
 
     _install_guards()
     _uninstall_guards()
@@ -276,6 +291,8 @@ def test_guard_restores_on_exit():
     assert lf.create_llm_client is orig_create_llm
     assert socket.create_connection is orig_conn
     assert httpx.post is orig_httpx_post
+    assert rec.ExternalRagClient is orig_ext_rag_def
+    assert rf.ExternalRagClient is orig_ext_rag_factory
 
 
 # ── Contract Tests ────────────────────────────────────────────────────────────

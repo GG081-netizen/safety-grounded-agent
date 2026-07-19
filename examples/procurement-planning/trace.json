@@ -53,7 +53,7 @@
   "rag_diagnostics": [
     {
       "error_type": null,
-      "latency_ms": 15.0,
+      "latency_ms": 0.0,
       "message": "Portfolio RAG returned procurement advice with 3 citations",
       "provider": "deterministic_portfolio_rag",
       "step_name": "rag_query",

@@ -57,7 +57,7 @@
         },
         {
           "error_type": null,
-          "latency_ms": 4.0,
+          "latency_ms": 0.0,
           "message": "Local keyword RAG returned 1 evidence item",
           "provider": "local",
           "step_name": "local_rag_fallback",
@@ -129,7 +129,7 @@
       {
         "confidence": 0.55,
         "input_summary": "笔记本批量采购需要注意什么？",
-        "latency_ms": 4,
+        "latency_ms": 0,
         "output_summary": "Local keyword RAG returned 1 evidence item",
         "step_name": "local_rag_fallback",
         "tool_calls": [],

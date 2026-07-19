@@ -60,7 +60,7 @@
       "diagnostics": [
         {
           "error_type": null,
-          "latency_ms": 15.0,
+          "latency_ms": 0.0,
           "message": "Portfolio RAG returned procurement advice with 3 citations",
           "provider": "deterministic_portfolio_rag",
           "step_name": "rag_query",
@@ -145,7 +145,7 @@
       {
         "confidence": 0.82,
         "input_summary": "为80名研发人员规划办公工作站，主要用于IDE、Docker和轻量本地模型，单机预算不超过7000元，请给出采购建议。",
-        "latency_ms": 15,
+        "latency_ms": 0,
         "output_summary": "Portfolio RAG returned procurement advice with 3 citations",
         "step_name": "rag_query",
         "tool_calls": [],

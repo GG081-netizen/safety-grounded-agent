@@ -70,10 +70,13 @@ def _install_guards() -> None:
 
     # Patch consumer-module bindings (where imports resolve at runtime)
     import conversation_agent.rag.factory
+    import conversation_agent.rag.external_client
     import conversation_agent.orchestration.coordinator
     import conversation_agent.api.app
     import conversation_agent.llm.factory
 
+    # ExternalRagClient: definition module + consumer bindings
+    _patch_attr(conversation_agent.rag.external_client, "ExternalRagClient", _blocked)
     _patch_attr(conversation_agent.rag.factory, "ExternalRagClient", _blocked)
     _patch_attr(conversation_agent.rag.factory, "create_rag_client", _blocked)
     _patch_attr(conversation_agent.orchestration.coordinator, "get_config", _blocked)
@@ -400,7 +403,7 @@ def _procurement_rag_result() -> RagResult:
         diagnostics=[RagCallDiagnostic(step_name="rag_query",
                         provider="deterministic_portfolio_rag", success=True,
                         message="Portfolio RAG returned procurement advice with 3 citations",
-                        latency_ms=15.0)],
+                        latency_ms=0.0)],
     )
 
 
@@ -423,7 +426,7 @@ def _fallback_rag_result() -> RagResult:
         diagnostics=[RagCallDiagnostic(step_name="local_rag_query", provider="local",
                         success=True,
                         message="Local keyword RAG returned 1 evidence item",
-                        latency_ms=4.0)],
+                        latency_ms=0.0)],
     )
 
 
@@ -576,15 +579,16 @@ _BLOCKED_README = """\
 
 ```
 POST /v1/chat  (demo mode, no auth)
+  → Coordinator 进入并执行 PolicyEngine
   → PolicyEngine: BLOCKED (privacy violation)
-  → [STOP] Router/Coordinator/RAG 均未执行
+  → IntentRouter、TaskRouter、Task Execution 和 RAG 均未执行
   → 返回标准拒绝消息
 ```
 
 ## 证明能力
 
 - Policy 在 Router 和 RAG 之前阻断高风险请求
-- BLOCKED 后零 downstream execution
+- Coordinator 被调用（orchestrator_entry_calls=1），但下游任务执行被阻止（downstream_task_execution_calls=0）
 - 不返回私人信息推测或虚假 Citation
 - Trace 仅包含 policy_engine stage
 
