@@ -1,0 +1,126 @@
+---
+# yamllint disable rule:line-length
+name: Portfolio Release Gates
+
+# yamllint disable-line rule:truthy
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  destructive-postgres:
+    name: destructive-postgres
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_USER: convagent_test
+      POSTGRES_PASSWORD: convagent_release_test_only
+      POSTGRES_DB: convagent_release_test
+      CONVAGENT_POSTGRES_TEST_URL: postgresql+asyncpg://convagent_test:convagent_release_test_only@127.0.0.1:5432/convagent_release_test
+      CONVAGENT_TEST_DB_CONFIRMED: convagent_release_test
+      CONVAGENT_ALLOW_DESTRUCTIVE_DB_TESTS: "true"
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: convagent_test
+          POSTGRES_PASSWORD: convagent_release_test_only
+          POSTGRES_DB: convagent_release_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U convagent_test -d convagent_release_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install frozen development dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen --extra dev
+      - name: Upgrade database to head
+        run: uv run --frozen --extra dev alembic -x database_url="$CONVAGENT_POSTGRES_TEST_URL" upgrade head
+      - name: Run destructive PostgreSQL migration cycle
+        run: uv run --frozen --extra dev python -m pytest -p no:xdist -m "postgres_integration and not operational_integration" -v --junitxml="$RUNNER_TEMP/postgres-destructive.xml"
+      - name: Assert destructive suite executed without skips
+        run: >-
+          uv run --frozen --extra dev python scripts/check_pytest_junit.py
+          "$RUNNER_TEMP/postgres-destructive.xml"
+          --suite-identity postgres-destructive
+          --minimum-tests 74
+          --output-json "$RUNNER_TEMP/postgres-destructive-validation.json"
+          --required-test test_downgrade_removes_four_business_tables
+          --required-test test_upgrade_downgrade_upgrade_cycle
+          --required-test test_service_level_concurrent_duplicate_executes_once_then_replays
+          --required-test test_policy_blocked_finalizes_atomically_and_replays
+          --required-test test_http_postgres_executes_and_replays
+          --required-test test_prune_uses_database_time_and_never_deletes_active_or_history
+      - name: Verify final migration revision
+        run: |
+          uv run --frozen --extra dev alembic -x database_url="$CONVAGENT_POSTGRES_TEST_URL" current > "$RUNNER_TEMP/alembic-current.txt"
+          grep -Fx "0001 (head)" "$RUNNER_TEMP/alembic-current.txt"
+
+  operational-postgres:
+    name: operational-postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      POSTGRES_USER: convagent_test
+      POSTGRES_PASSWORD: convagent_operational_test_only
+      POSTGRES_DB: convagent_operational_test
+      CONVAGENT_POSTGRES_TEST_URL: postgresql+asyncpg://convagent_test:convagent_operational_test_only@127.0.0.1:5432/convagent_operational_test
+      CONVAGENT_TEST_DB_CONFIRMED: convagent_operational_test
+      CONVAGENT_ALLOW_DESTRUCTIVE_DB_TESTS: "true"
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: convagent_test
+          POSTGRES_PASSWORD: convagent_operational_test_only
+          POSTGRES_DB: convagent_operational_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U convagent_test -d convagent_operational_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install frozen development dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen --extra dev
+      - name: Upgrade operational database to head
+        run: uv run --frozen --extra dev alembic -x database_url="$CONVAGENT_POSTGRES_TEST_URL" upgrade head
+      - name: Run bounded operational contracts
+        run: uv run --frozen --extra dev python -m pytest -p no:xdist -m operational_integration -v --junitxml="$RUNNER_TEMP/postgres-operational.xml"
+      - name: Assert every operational drill executed
+        run: >-
+          uv run --frozen --extra dev python scripts/check_pytest_junit.py
+          "$RUNNER_TEMP/postgres-operational.xml"
+          --suite-identity operational-postgres
+          --minimum-tests 6
+          --output-json "$RUNNER_TEMP/operational-validation.json"
+          --required-test test_process_crash_preserves_active_then_request_driven_reclaims
+          --required-test test_two_independent_engines_coordinate_one_active_claim
+          --required-test test_prune_skip_locked_loses_safely_to_terminal_reacquire
+          --required-test test_database_network_outage_and_readiness_recover_without_fallback
+          --required-test test_bounded_pool_soak_releases_all_connections
+          --required-test test_ephemeral_database_role_ownership_and_runtime_permissions
+      - name: Run bounded logical backup and fresh-database restore
+        run: uv run --frozen --extra dev python scripts/postgres_backup_restore_drill.py --timeout 120
+      - name: Verify final migration revision
+        run: |
+          uv run --frozen --extra dev alembic -x database_url="$CONVAGENT_POSTGRES_TEST_URL" current > "$RUNNER_TEMP/alembic-current.txt"
+          grep -Fx "0001 (head)" "$RUNNER_TEMP/alembic-current.txt"

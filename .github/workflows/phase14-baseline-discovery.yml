@@ -1,4 +1,4 @@
-name: Phase 14-G Baseline Discovery
+name: "[Experimental] Phase 14 Discovery"
 
 on:
   workflow_dispatch:

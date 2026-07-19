@@ -1,5 +1,7 @@
 from pathlib import Path
 import re
+import subprocess
+import sys
 import tomllib
 
 import pytest
@@ -49,6 +51,57 @@ def test_functional_gate_orders_canaries_before_real_scan():
     canary = text.index('summary["gitleaks_builtin_canary_detected"]')
     real_scan = text.index('real_report = args.summary.with_suffix')
     assert canary < real_scan
+
+
+def test_failed_dual_canary_does_not_scan_real_repository(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import scripts.run_gitleaks_functional_gate as gate
+
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    summary = tmp_path / "summary.json"
+    real_scan_calls = 0
+
+    def fake_run(command, *, cwd, expected=(0,)):
+        nonlocal real_scan_calls
+        if "detect" in command:
+            report_path = Path(command[command.index("--report-path") + 1])
+            if Path(cwd) == repository:
+                real_scan_calls += 1
+            report_path.write_text(
+                '[{"RuleID":"convagent-dashscope-api-key"}]',
+                encoding="utf-8",
+            )
+            return subprocess.CompletedProcess(command, 1, "", "")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(gate, "_run", fake_run)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_gitleaks_functional_gate.py",
+            "--binary",
+            "gitleaks",
+            "--repository",
+            str(repository),
+            "--config",
+            str(Path(".gitleaks.toml").resolve()),
+            "--summary",
+            str(summary),
+            "--temporary-directory",
+            str(tmp_path / "scanner-temp"),
+            "--subject-commit-sha",
+            "a" * 40,
+            "--checksum-valid",
+            "--version-valid",
+        ],
+    )
+
+    assert gate.main() == 2
+    assert real_scan_calls == 0
 
 
 @pytest.mark.parametrize(

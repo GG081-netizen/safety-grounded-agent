@@ -34,11 +34,12 @@ def test_prune_contract_uses_database_time_skip_locked_and_terminal_recheck():
 
 
 def test_ci_operational_job_has_skip_protection_and_backup_restore_gate():
-    workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    workflow = Path(".github/workflows/portfolio-release-gates.yml").read_text(
+        encoding="utf-8"
+    )
     assert "operational-postgres:" in workflow
-    assert "--suite-identity operational-postgres --minimum-tests 6" in workflow
+    assert "--suite-identity operational-postgres" in workflow
+    assert "--minimum-tests 6" in workflow
     assert "Run bounded logical backup and fresh-database restore" in workflow
-    assert "pg_dump" in workflow
-    assert "pg_restore" in workflow
-    assert "trap cleanup EXIT" in workflow
-    assert 'test "$revision" = "0001"' in workflow
+    assert "scripts/postgres_backup_restore_drill.py --timeout 120" in workflow
+    assert 'grep -Fx "0001 (head)"' in workflow
