@@ -484,11 +484,15 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                 )
             )
     except Exception as exc:
+        # Sanitize: never include connection URLs or passwords in diagnostics
+        detail = str(exc)
+        if source_url:
+            detail = detail.replace(source_url, "***REDACTED_URL***")
         raise PostgreSQLOperationError(
             operation="seed_source",
             executable="sqlalchemy",
             return_code=-1,
-            stderr_summary=f"seed source failed: {type(exc).__name__}",
+            stderr_summary=f"seed source failed: {type(exc).__name__} — {detail[:200]}",
             failure_type="seed_source_failed",
         ) from exc
     finally:
