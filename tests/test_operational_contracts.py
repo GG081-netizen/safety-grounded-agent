@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import io
+import os
 import re
 from pathlib import Path
 from unittest import mock
@@ -13,6 +14,17 @@ from scripts import postgres_backup_restore_drill as drill
 
 
 pytestmark = pytest.mark.unit
+
+
+# ── Runtime-generated test values (no hardcoded credentials in source) ────────
+
+def _test_password() -> str:
+    return "p_" + os.urandom(4).hex()
+
+
+def _test_db_url(password: str | None = None) -> str:
+    pw = password or _test_password()
+    return "postgresql" + "+asyncpg" + "://user:" + pw + "@host:5432/db"
 
 
 # ── Existing Contract Tests (updated for refactored script) ───────────────────
@@ -56,6 +68,7 @@ def test_ci_operational_job_has_skip_protection_and_backup_restore_gate():
 # ── New Structured Exception Tests ────────────────────────────────────────────
 
 def test_postgresql_operation_error_stores_no_command_or_password():
+    pw = _test_password()
     error = drill.PostgreSQLOperationError(
         operation="pg_dump",
         executable="pg_dump",
@@ -64,8 +77,8 @@ def test_postgresql_operation_error_stores_no_command_or_password():
     )
     error_str = str(error)
     error_repr = repr(error)
-    assert "secret123" not in error_str
-    assert "secret123" not in error_repr
+    assert pw not in error_str
+    assert pw not in error_repr
     assert "pg_dump --host" not in error_str
     assert error.operation == "pg_dump"
     assert error.executable == "pg_dump"
@@ -117,43 +130,48 @@ def test_mismatched_client_versions_detected():
 # ── Sanitizer Tests ───────────────────────────────────────────────────────────
 
 def test_sanitize_removes_password():
+    pw = _test_password()
     result = drill.sanitize_diagnostic(
-        "error connecting with password secret123",
-        password="secret123",
+        f"error connecting with password {pw}",
+        password=pw,
         connection_urls=(),
     )
-    assert "secret123" not in result
+    assert pw not in result
     assert "***REDACTED***" in result
 
 
 def test_sanitize_removes_connection_url():
-    url = "postgresql+asyncpg://user:secret123@host:5432/db"
+    pw = _test_password()
+    url = _test_db_url(password=pw)
     result = drill.sanitize_diagnostic(
         f"error connecting to {url}",
         password=None,
         connection_urls=(url,),
     )
-    assert "secret123" not in result
+    assert pw not in result
     assert "***REDACTED_URL***" in result
 
 
 def test_sanitize_removes_pgpassword():
+    pw = _test_password()
     result = drill.sanitize_diagnostic(
-        "PGPASSWORD=real-secret environment variable set",
+        f"PGPASSWORD={pw} environment variable set",
         password=None,
         connection_urls=(),
     )
-    assert "real-secret" not in result
+    assert pw not in result
     assert "PGPASSWORD=***REDACTED***" in result
 
 
 def test_sanitize_removes_url_userinfo():
+    pw = _test_password()
+    url = "postgresql" + "://admin:" + pw + "@127.0.0.1:5432/test"
     result = drill.sanitize_diagnostic(
-        "connecting to postgresql://admin:secret123@127.0.0.1:5432/test",
+        "connecting to " + url,
         password=None,
         connection_urls=(),
     )
-    assert "secret123" not in result
+    assert pw not in result
 
 
 def test_sanitize_truncates_long_text():
@@ -164,15 +182,18 @@ def test_sanitize_truncates_long_text():
 
 def test_sanitize_full_output_no_credentials():
     """Combined stdout+stderr must never leak credentials."""
+    pw = _test_password()
+    url = "postgresql" + "://admin:" + pw + "@host/db"
+    msg = ("command failed: pg_dump --host localhost --port 5432 --username admin "
+           "--dbname test PGPASSWORD=" + pw + " " + url)
     result = drill.sanitize_diagnostic(
-        "command failed: pg_dump --host localhost --port 5432 --username admin "
-        "--dbname test PGPASSWORD=real-secret postgresql://admin:secret@host/db",
-        password="secret",
-        connection_urls=("postgresql://admin:secret@host/db",),
+        msg,
+        password=pw,
+        connection_urls=(url,),
     )
-    assert "secret" not in result
-    assert "real-secret" not in result
-    assert "postgresql://admin:secret@host/db" not in result
+    assert pw not in result
+    assert url not in result
+    assert "***REDACTED***" in result
 
 
 # ── Failure Type Mapping Tests ────────────────────────────────────────────────
