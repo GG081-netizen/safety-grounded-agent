@@ -6,6 +6,11 @@ Phase 14-G establishes the first trusted Git and GitHub baseline for
 `GG081-netizen/crispy-fortnight-baseline-2` (Bootstrap 2). It is a one-shot bootstrap contract, not an
 ordinary release workflow.
 
+Historical naming note: after Phase 14-G was closed as blocked, this same
+repository was renamed to `GG081-netizen/safety-grounded-agent`. The repository
+ID and retained Phase 14-G audit facts did not change. This document keeps the
+original name because it describes the Bootstrap 2 execution as it occurred.
+
 The required identity is:
 
 ```text

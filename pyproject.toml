@@ -1,7 +1,8 @@
 [project]
 name = "conversation-agent"
 version = "0.1.0"
-description = "Procurement Sales Copilot Agent — analyze enterprise procurement needs, score deals, plan strategy"
+description = "Safety-grounded orchestration for enterprise procurement, sales, presales, and knowledge workflows"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.0",
@@ -30,6 +31,12 @@ dev = [
 
 [project.scripts]
 convagent = "conversation_agent.cli.main:cli"
+
+[project.urls]
+Homepage = "https://github.com/GG081-netizen/safety-grounded-agent"
+Repository = "https://github.com/GG081-netizen/safety-grounded-agent"
+Documentation = "https://github.com/GG081-netizen/safety-grounded-agent/tree/main/docs"
+Issues = "https://github.com/GG081-netizen/safety-grounded-agent/issues"
 
 [build-system]
 requires = ["hatchling"]
