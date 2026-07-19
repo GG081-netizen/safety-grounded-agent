@@ -554,6 +554,7 @@ def main() -> int:
     except Exception as exc:
         print("backup_restore_status=failed")
         print(f"backup_restore_failure_type={type(exc).__name__}")
+        print(f"backup_restore_failure_message={exc}")
         if isinstance(exc, IntegrityError):
             cause = getattr(exc.orig, "__cause__", None)
             constraint_name = getattr(cause, "constraint_name", None)
