@@ -303,37 +303,46 @@ def _check_client_versions(tools: dict[str, str]) -> dict[str, int]:
 
 
 async def _seed_source(source_url: str, prefix: str) -> None:
+    """Seed synthetic data that satisfies the persistence integrity contract.
+
+    Lifecycle model:
+    - Original completed request → 1 run + accepted/completed audits
+    - Blocked request → 1 run (status=blocked) + accepted/policy_blocked audits
+    - Failed request → 1 run (status=failed) + accepted/failed audits
+    - Replay request → NO run, replayed_from points to completed, uses same hashes
+    - IdempotencyRecord → owner is completed request, uses same hashes
+    """
     engine = create_async_engine(source_url)
     now = datetime.now(timezone.utc)
     created = now - timedelta(hours=2)
 
-    # Deterministic hex hashes for seed data (all satisfy ^[0-9a-f]{64}$)
-    completed_user_text_hash = _stable_hex(f"{prefix}-completed-text")
-    completed_idempotency_hash = _stable_hex(f"{prefix}-completed-idem")
-    completed_fingerprint = _stable_hex(f"{prefix}-completed-fp")
+    # Shared identity: original completed, its replay, and idempotency record
+    # share the SAME idempotency_hash and fingerprint.
+    shared_idempotency_hash = _stable_hex(f"{prefix}-shared-idem")
+    shared_fingerprint = _stable_hex(f"{prefix}-shared-fp")
+
     blocked_user_text_hash = _stable_hex(f"{prefix}-blocked-text")
     blocked_fingerprint = _stable_hex(f"{prefix}-blocked-fp")
     failed_user_text_hash = _stable_hex(f"{prefix}-failed-text")
     failed_fingerprint = _stable_hex(f"{prefix}-failed-fp")
-    replay_user_text_hash = _stable_hex(f"{prefix}-replay-text")
-    replay_idempotency_hash = _stable_hex(f"{prefix}-replay-idem")
-    replay_fingerprint = _stable_hex(f"{prefix}-replay-fp")
 
     try:
         async with engine.begin() as connection:
+            # ── A. Original completed request ──
             completed_request = await connection.scalar(
                 AgentRequest.__table__.insert().values(
                     request_id=f"{prefix}-completed",
                     trace_id=f"{prefix}-completed-trace",
+                    session_id=f"{prefix}-session",
                     operation="v1.chat",
                     principal_user_id="backup-user",
                     tenant_id="backup-tenant",
                     organization_id="backup-org",
                     status="completed",
-                    user_text_hash=completed_user_text_hash,
-                    user_text_length=9,
-                    idempotency_key_hash=completed_idempotency_hash,
-                    request_fingerprint=completed_fingerprint,
+                    user_text_hash=shared_fingerprint,
+                    user_text_length=28,
+                    idempotency_key_hash=shared_idempotency_hash,
+                    request_fingerprint=shared_fingerprint,
                     fingerprint_version=2,
                     authorization_snapshot={"allowed": True},
                     authorization_snapshot_schema_version=1,
@@ -345,6 +354,7 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                 AgentRun.__table__.insert().values(
                     run_id=f"{prefix}-completed-run",
                     original_request_id=completed_request,
+                    session_id=f"{prefix}-session",
                     status="completed",
                     result_snapshot={"answer": "synthetic backup result"},
                     result_snapshot_schema_version=1,
@@ -354,10 +364,43 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                     completed_at=created + timedelta(seconds=2),
                 ).returning(AgentRun.id)
             )
+            # Audit: request_accepted
+            await connection.execute(
+                AuditEvent.__table__.insert().values(
+                    event_id=f"{prefix}-audit-accepted",
+                    request_id=f"{prefix}-completed",
+                    trace_id=f"{prefix}-completed-trace",
+                    tenant_id="backup-tenant",
+                    organization_id="backup-org",
+                    event_type="request_accepted",
+                    principal_user_id="backup-user",
+                    outcome="success",
+                    details_json={"source": "backup_drill"},
+                    created_at=created,
+                )
+            )
+            # Audit: request_completed (terminal)
+            await connection.execute(
+                AuditEvent.__table__.insert().values(
+                    event_id=f"{prefix}-audit-completed",
+                    request_id=f"{prefix}-completed",
+                    trace_id=f"{prefix}-completed-trace",
+                    tenant_id="backup-tenant",
+                    organization_id="backup-org",
+                    event_type="request_completed",
+                    principal_user_id="backup-user",
+                    outcome="success",
+                    details_json={"source": "backup_drill"},
+                    created_at=created + timedelta(seconds=2),
+                )
+            )
+
+            # ── B. Blocked request ──
             blocked_request = await connection.scalar(
                 AgentRequest.__table__.insert().values(
                     request_id=f"{prefix}-blocked",
                     trace_id=f"{prefix}-blocked-trace",
+                    session_id=f"{prefix}-session",
                     operation="v1.qa",
                     principal_user_id="backup-user",
                     tenant_id="backup-tenant",
@@ -377,6 +420,7 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                 AgentRun.__table__.insert().values(
                     run_id=f"{prefix}-blocked-run",
                     original_request_id=blocked_request,
+                    session_id=f"{prefix}-session",
                     status="blocked",
                     policy_outcome="BLOCKED",
                     result_snapshot={"answer": "blocked"},
@@ -387,10 +431,41 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                     completed_at=created + timedelta(seconds=1),
                 )
             )
+            await connection.execute(
+                AuditEvent.__table__.insert().values(
+                    event_id=f"{prefix}-audit-blocked-accepted",
+                    request_id=f"{prefix}-blocked",
+                    trace_id=f"{prefix}-blocked-trace",
+                    tenant_id="backup-tenant",
+                    organization_id="backup-org",
+                    event_type="request_accepted",
+                    principal_user_id="backup-user",
+                    outcome="success",
+                    details_json={"source": "backup_drill"},
+                    created_at=created,
+                )
+            )
+            await connection.execute(
+                AuditEvent.__table__.insert().values(
+                    event_id=f"{prefix}-audit-blocked-terminal",
+                    request_id=f"{prefix}-blocked",
+                    trace_id=f"{prefix}-blocked-trace",
+                    tenant_id="backup-tenant",
+                    organization_id="backup-org",
+                    event_type="policy_blocked",
+                    principal_user_id="backup-user",
+                    outcome="success",
+                    details_json={"source": "backup_drill"},
+                    created_at=created + timedelta(seconds=1),
+                )
+            )
+
+            # ── C. Failed request ──
             failed_request = await connection.scalar(
                 AgentRequest.__table__.insert().values(
                     request_id=f"{prefix}-failed",
                     trace_id=f"{prefix}-failed-trace",
+                    session_id=f"{prefix}-session",
                     operation="v1.chat",
                     principal_user_id="backup-user",
                     tenant_id="backup-tenant",
@@ -411,6 +486,7 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                 AgentRun.__table__.insert().values(
                     run_id=f"{prefix}-failed-run",
                     original_request_id=failed_request,
+                    session_id=f"{prefix}-session",
                     status="failed",
                     result_snapshot={"error": "synthetic failure"},
                     result_snapshot_schema_version=1,
@@ -420,37 +496,92 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                     completed_at=created + timedelta(seconds=1),
                 )
             )
-            replay_request = await connection.scalar(
+            await connection.execute(
+                AuditEvent.__table__.insert().values(
+                    event_id=f"{prefix}-audit-failed-accepted",
+                    request_id=f"{prefix}-failed",
+                    trace_id=f"{prefix}-failed-trace",
+                    tenant_id="backup-tenant",
+                    organization_id="backup-org",
+                    event_type="request_accepted",
+                    principal_user_id="backup-user",
+                    outcome="success",
+                    details_json={"source": "backup_drill"},
+                    created_at=created,
+                )
+            )
+            await connection.execute(
+                AuditEvent.__table__.insert().values(
+                    event_id=f"{prefix}-audit-failed-terminal",
+                    request_id=f"{prefix}-failed",
+                    trace_id=f"{prefix}-failed-trace",
+                    tenant_id="backup-tenant",
+                    organization_id="backup-org",
+                    event_type="request_failed",
+                    principal_user_id="backup-user",
+                    outcome="failure",
+                    details_json={"source": "backup_drill"},
+                    created_at=created + timedelta(seconds=1),
+                )
+            )
+
+            # ── D. Replay request ──
+            # replayed_from_request_id → completed request's DB id
+            # Shares idempotency_hash and fingerprint with original
+            # NO AgentRun created for replay
+            await connection.execute(
                 AgentRequest.__table__.insert().values(
                     request_id=f"{prefix}-replay",
                     trace_id=f"{prefix}-replay-trace",
+                    session_id=f"{prefix}-session",
                     operation="v1.chat",
                     principal_user_id="backup-user",
                     tenant_id="backup-tenant",
                     organization_id="backup-org",
                     status="completed",
-                    user_text_hash=replay_user_text_hash,
-                    user_text_length=8,
-                    idempotency_key_hash=replay_idempotency_hash,
-                    request_fingerprint=replay_fingerprint,
+                    replayed_from_request_id=completed_request,
+                    user_text_hash=shared_fingerprint,
+                    user_text_length=28,
+                    idempotency_key_hash=shared_idempotency_hash,
+                    request_fingerprint=shared_fingerprint,
                     fingerprint_version=2,
                     authorization_snapshot={"allowed": True},
                     authorization_snapshot_schema_version=1,
                     created_at=created,
                     completed_at=created + timedelta(seconds=3),
-                ).returning(AgentRequest.id)
+                )
             )
+            # Audit: request_completed for replay
+            await connection.execute(
+                AuditEvent.__table__.insert().values(
+                    event_id=f"{prefix}-audit-replay-terminal",
+                    request_id=f"{prefix}-replay",
+                    trace_id=f"{prefix}-replay-trace",
+                    tenant_id="backup-tenant",
+                    organization_id="backup-org",
+                    event_type="request_completed",
+                    principal_user_id="backup-user",
+                    outcome="success",
+                    details_json={"source": "backup_drill"},
+                    created_at=created + timedelta(seconds=3),
+                )
+            )
+
+            # ── E. Completed IdempotencyRecord ──
+            # owner → original completed request (by request_id string)
+            # completed_run → original completed run (by DB id)
+            # Shares idempotency_hash and fingerprint with original
             await connection.execute(
                 IdempotencyRecord.__table__.insert().values(
                     tenant_id="backup-tenant",
                     organization_id="backup-org",
                     principal_user_id="backup-user",
-                    idempotency_key_hash=replay_idempotency_hash,
+                    idempotency_key_hash=shared_idempotency_hash,
                     operation="v1.chat",
                     status="completed",
                     claim_version=1,
-                    owner_request_id=f"{prefix}-replay",
-                    request_fingerprint=replay_fingerprint,
+                    owner_request_id=f"{prefix}-completed",
+                    request_fingerprint=shared_fingerprint,
                     fingerprint_version=2,
                     completed_run_record_id=completed_run,
                     response_snapshot={
@@ -475,20 +606,6 @@ async def _seed_source(source_url: str, prefix: str) -> None:
                     claimed_at=created,
                     lease_expires_at=created + timedelta(hours=1),
                     expires_at=created + timedelta(days=7),
-                )
-            )
-            await connection.execute(
-                AuditEvent.__table__.insert().values(
-                    event_id=f"{prefix}-audit-1",
-                    request_id=f"{prefix}-completed",
-                    trace_id=f"{prefix}-completed-trace",
-                    tenant_id="backup-tenant",
-                    organization_id="backup-org",
-                    event_type="request_accepted",
-                    principal_user_id="backup-user",
-                    outcome="success",
-                    details_json={"source": "backup_drill"},
-                    created_at=created,
                 )
             )
     except Exception as exc:
@@ -648,11 +765,20 @@ async def _verify(
                 )
         integrity = await PersistenceIntegrityChecker(restore_engine).check(full=True)
         if integrity.status != "healthy" or not integrity.complete:
+            issues = ",".join(
+                f"{issue.code}:{issue.count}"
+                for issue in integrity.issues
+            ) if integrity.issues else "none"
             raise PostgreSQLOperationError(
                 operation="integrity_check",
                 executable="sqlalchemy",
                 return_code=-1,
-                stderr_summary="restored persistence integrity is not healthy",
+                stderr_summary=(
+                    f"status={integrity.status}; "
+                    f"complete={integrity.complete}; "
+                    f"mode={integrity.mode}; "
+                    f"issues={issues}"
+                ),
                 failure_type="persistence_integrity_failed",
             )
     finally:

@@ -260,16 +260,19 @@ def test_all_seed_hashes_match_hex_pattern():
     assert '"j" * 64' not in source
 
 
-def test_replay_request_and_idempotency_record_share_idempotency_hash():
+def test_original_replay_idempotency_share_idempotency_hash():
+    """Original, replay, and idempotency record use the same shared hash."""
     source = inspect.getsource(drill._seed_source)
-    assert "replay_idempotency_hash" in source
-    assert "idempotency_key_hash=replay_idempotency_hash" in source
+    assert "shared_idempotency_hash" in source
+    assert "idempotency_key_hash=shared_idempotency_hash" in source
+    assert 'owner_request_id=f"{prefix}-completed"' in source
 
 
-def test_replay_request_and_idempotency_record_share_fingerprint():
+def test_original_replay_idempotency_share_fingerprint():
+    """Original, replay, and idempotency record use the same shared fingerprint."""
     source = inspect.getsource(drill._seed_source)
-    assert "replay_fingerprint" in source
-    assert "request_fingerprint=replay_fingerprint" in source
+    assert "shared_fingerprint" in source
+    assert "request_fingerprint=shared_fingerprint" in source
 
 
 def test_restore_database_split_into_create_and_restore():
@@ -291,3 +294,86 @@ def test_named_temporary_file_used():
     assert "NamedTemporaryFile" in source
     assert "delete=False" in source
     assert "tempfile.mktemp" not in source
+
+
+# ── Seed Integrity Contract Tests ──────────────────────────────────────────────
+
+
+def test_shared_idempotency_hash_and_fingerprint():
+    """Original, replay, and idempotency record share the same hashes."""
+    source = inspect.getsource(drill._seed_source)
+    assert "shared_idempotency_hash" in source
+    assert "shared_fingerprint" in source
+    # Original uses shared hash
+    assert "idempotency_key_hash=shared_idempotency_hash" in source
+    # Replay uses shared hash
+    assert "replayed_from_request_id" in source
+
+
+def test_replay_request_has_replayed_from_request_id():
+    source = inspect.getsource(drill._seed_source)
+    assert "replayed_from_request_id=completed_request" in source
+
+
+def test_replay_request_creates_no_agent_run():
+    source = inspect.getsource(drill._seed_source)
+    replay_section = source.split("# ── D. Replay")[1].split("# ── E.")[0]
+    # "AgentRun" appears only in the comment, not in executable code
+    exec_lines = [l for l in replay_section.split("\n") if "AgentRun" in l and not l.strip().startswith("#")]
+    assert len(exec_lines) == 0, f"Replay should not create AgentRun: {exec_lines}"
+
+
+def test_completed_request_has_two_audits():
+    source = inspect.getsource(drill._seed_source)
+    completed_section = source.split("# ── A.")[1].split("# ── B.")[0]
+    assert 'event_type="request_accepted"' in completed_section
+    assert 'event_type="request_completed"' in completed_section
+
+
+def test_blocked_request_has_two_audits():
+    source = inspect.getsource(drill._seed_source)
+    blocked_section = source.split("# ── B.")[1].split("# ── C.")[0]
+    assert 'event_type="request_accepted"' in blocked_section
+    assert 'event_type="policy_blocked"' in blocked_section
+
+
+def test_failed_request_has_two_audits():
+    source = inspect.getsource(drill._seed_source)
+    failed_section = source.split("# ── C.")[1].split("# ── D.")[0]
+    assert 'event_type="request_accepted"' in failed_section
+    assert 'event_type="request_failed"' in failed_section
+
+
+def test_replay_request_has_terminal_audit():
+    source = inspect.getsource(drill._seed_source)
+    replay_section = source.split("# ── D.")[1].split("# ── E.")[0]
+    assert 'event_type="request_completed"' in replay_section
+
+
+def test_idempotency_record_owner_is_completed_request():
+    source = inspect.getsource(drill._seed_source)
+    idem_section = source.split("# ── E.")[1]
+    assert 'owner_request_id=f"{prefix}-completed"' in idem_section
+
+
+def test_integrity_failure_includes_issue_codes():
+    source = inspect.getsource(drill._verify)
+    assert "issue.code" in source
+    assert "issue.count" in source
+    assert "status=" in source
+
+
+def test_integrity_failure_excludes_raw_data():
+    source = inspect.getsource(drill._verify)
+    assert "response_snapshot" not in source.split("stderr_summary=")[1].split("failure_type")[0]
+    assert "database_url" not in source.lower().split("stderr_summary=")[1].split("failure_type")[0]
+
+
+def test_all_non_replay_terminal_requests_have_exactly_one_run():
+    source = inspect.getsource(drill._seed_source)
+    # Completed: 1 run via returning(AgentRun.id)
+    assert 'returning(AgentRun.id)' in source.split("# ── A.")[1].split("# ── B.")[0]
+    # Blocked: 1 run via execute
+    assert "AgentRun.__table__.insert()" in source.split("# ── B.")[1].split("# ── C.")[0]
+    # Failed: 1 run via execute
+    assert "AgentRun.__table__.insert()" in source.split("# ── C.")[1].split("# ── D.")[0]
