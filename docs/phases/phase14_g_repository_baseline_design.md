@@ -1,118 +1,80 @@
-# Phase 14-G Repository Baseline Design
+# Phase 14-G 仓库基线设计
 
-## Purpose
+## 目的
 
-Phase 14-G establishes the first trusted Git and GitHub baseline for
-`GG081-netizen/crispy-fortnight-baseline-2` (Bootstrap 2). It is a one-shot bootstrap contract, not an
-ordinary release workflow.
+Phase 14-G（第 14-G 阶段）为 `GG081-netizen/crispy-fortnight-baseline-2`（Bootstrap 2，引导阶段 2）建立首个可信的 Git 和 GitHub 基线。它是一次性引导契约（One-Shot Bootstrap Contract），而非普通发布工作流。
 
-Historical naming note: after Phase 14-G was closed as blocked, this same
-repository was renamed to `GG081-netizen/safety-grounded-agent`. The repository
-ID and retained Phase 14-G audit facts did not change. This document keeps the
-original name because it describes the Bootstrap 2 execution as it occurred.
+历史命名说明：在 Phase 14-G 被关闭为 blocked（阻塞状态）后，该仓库重命名为 `GG081-netizen/safety-grounded-agent`。仓库 ID（标识符）和保留的 Phase 14-G 审计事实未发生变更。本文件保留原始名称，因为它描述的是 Bootstrap 2 执行时的状态。
 
-The required identity is:
+所需身份为：
 
 ```text
-frozen local implementation
-= Candidate Manifest
-= root commit tree
-= GitHub main
-= Discovery subject
-= Formal subject
-= verified baseline artifact subject
+frozen local implementation（冻结的本地实现）
+= Candidate Manifest（候选清单）
+= root commit tree（根提交树）
+= GitHub main（GitHub 主分支）
+= Discovery subject（发现阶段主题）
+= Formal subject（正式阶段主题）
+= verified baseline artifact subject（已验证基线制品主题）
 ```
 
-The Candidate Manifest is generated in an empty, unborn Git repository and
-stored only under ignored `tmp/`. Candidate paths come from Git's native ignore
-engine using the equivalent of
-`git -c core.excludesFile=/dev/null ls-files --others --exclude-standard -z`.
-An effective non-comment rule in `.git/info/exclude` is rejected. This isolates
-global excludes while preserving nested, negated, and directory `.gitignore`
-semantics.
+Candidate Manifest（候选清单）在空的、未出生的 Git 仓库中生成，仅存储在 Git 忽略的 `tmp/` 目录下。候选路径来自 Git 的原生忽略引擎，等效于 `git -c core.excludesFile=/dev/null ls-files --others --exclude-standard -z`。`.git/info/exclude` 中的有效非注释规则会被拒绝。这种方式隔离了全局排除规则，同时保留了嵌套、否定和目录级 `.gitignore` 语义。
 
-The manifest lists canonical paths, Git modes, byte sizes, and file SHA-256
-values. It does not contain timestamps, absolute paths, local Secret Stores,
-Git metadata, ignored local backup files, or itself. Symlinks and paths outside
-the worktree are rejected. After `git add --all`, the same representation is
-rebuilt from the Git index and must match exactly.
+清单列出了规范路径、Git 模式、字节大小和文件 SHA-256（安全哈希算法 256 位）值。它不包含时间戳、绝对路径、本地 Secret Store（密钥存储）、Git 元数据、被忽略的本地备份文件或自身。符号链接和工作树之外的路径被拒绝。在 `git add --all` 之后，从 Git 索引重建的相同表示必须精确匹配。
 
-The bootstrap ordering is fixed:
+引导顺序是固定的：
 
 ```text
-implementation freeze
--> empty/unborn Git repository
--> Git-aware Candidate Manifest
--> git add --all
--> Index Manifest
--> exact equivalence gate
--> root commit
+implementation freeze（实现冻结）
+-> empty/unborn Git repository（空/未出生 Git 仓库）
+-> Git-aware Candidate Manifest（Git 感知候选清单）
+-> git add --all（添加全部文件）
+-> Index Manifest（索引清单）
+-> exact equivalence gate（精确等价门禁）
+-> root commit（根提交）
 ```
 
-## Evidence Layers
+## 证据层
 
-Discovery is explicitly non-authoritative. Its internal evidence contains only
-facts known before artifact upload. Artifact ID, digest, size, and origin are
-obtained afterward from the GitHub API and recorded in an external
-`DiscoveryArtifactBindingV1` under ignored `tmp/`.
+Discovery（发现阶段）明确是非权威的。其内部证据仅包含 Artifact 上传前已知的事实。Artifact ID、摘要、大小和来源在事后从 GitHub API 获取，并记录在 Git 忽略的 `tmp/` 下的外部 `DiscoveryArtifactBindingV1` 中。
 
-The Discovery artifact member set is exact:
+Discovery Artifact 成员集合是精确的：
 
 ```text
-phase14-discovery-evidence.json
-phase14-candidate-manifest.json
+phase14-discovery-evidence.json（发现阶段证据）
+phase14-candidate-manifest.json（候选清单）
 ```
 
-Unknown, duplicate, hidden, non-regular, directory, or symlink members are
-rejected.
+未知、重复、隐藏、非普通文件、目录或符号链接成员被拒绝。
 
-Formal execution binds that external GitHub metadata to the raw downloaded ZIP
-and then to the internal Discovery evidence. The final baseline artifact has
-exactly three files:
+Formal（正式阶段）执行将该外部 GitHub 元数据绑定到原始下载的 ZIP 文件，然后再绑定到内部 Discovery 证据。最终基线 Artifact 恰好包含三个文件：
 
 ```text
-phase14-baseline-closeout.json
-phase14-baseline-closeout.md
-phase14-candidate-manifest.json
+phase14-baseline-closeout.json（基线收尾 JSON）
+phase14-baseline-closeout.md（基线收尾 Markdown）
+phase14-candidate-manifest.json（候选清单）
 ```
 
-The artifact does not contain its own ID, digest, size, download URL, or claim
-of GitHub origin. Those facts can only be established by the independent online
-verifier after the workflow has completed.
+该 Artifact 不包含其自身的 ID、摘要、大小、下载 URL 或 GitHub 来源声明。这些事实只能由独立在线验真器（Online Verifier）在工作流完成后建立。
 
-## Job Time Semantics
+## Job 时间语义
 
-A running job cannot prove its own successful completion. Producer jobs bind
-their workflow-job and check-run IDs while their state is `queued` or
-`in_progress` and conclusion is null. `baseline-approval` verifies the four
-Producers, while `baseline-closeout` verifies those jobs plus the approval job.
-Each still records only its own running state. The online verifier alone proves
-that all six jobs completed successfully.
+正在运行的 Job 无法证明自身成功完成。Producer Job 在其状态为 `queued`（排队中）或 `in_progress`（进行中）且结论为空时，绑定其 Workflow-Job 和 Check-Run ID。`baseline-approval` 验证四个 Producer，而 `baseline-closeout` 验证这些 Job 加上审批 Job。每个 Job 仍然只记录自身的运行状态。只有在线验真器能证明全部六个 Job 已成功完成。
 
-The protected Environment is `phase14-baseline-closeout`. Approval must come
-from `toshibanino6-creator`, differ from the workflow trigger actor, and be
-enforced with prevent-self-review.
+受保护 Environment（环境）为 `phase14-baseline-closeout`。审批必须来自 `toshibanino6-creator`，不同于 Workflow 触发 Actor，并通过防自审（Prevent-Self-Review）强制执行。
 
-## One-shot Failure Boundary
+## 一次性故障边界
 
-All source, tests, workflows, verification scripts, and documentation are
-frozen before the root commit. If a committed-file defect is discovered after
-the first push, the baseline attempt is invalidated. The root commit is never
-amended or rewritten, and a second commit cannot be presented as the same root
-baseline. Recovery requires either a newly approved empty repository or a new,
-versioned Successor Baseline contract.
+所有源代码、测试、工作流、验证脚本和文档在根提交之前被冻结。如果在首次 Push 后发现已提交文件的缺陷，该基线尝试即告失效。根提交永远不会被修改或重写，第二个提交不能被呈现为同一根基线。恢复需要全新批准的空仓库或新的带版本号的后续基线契约（Successor Baseline Contract）。
 
-Bootstrap 1 in `GG081-netizen/crispy-fortnight` was invalidated after its
-first Discovery run exposed a committed Discovery/Formal job-identity contract
-mix-up. Its root and failed run remain immutable audit evidence; Bootstrap 2
-uses distinct `DiscoveryJobIdentity` and `FormalBaselineJobIdentity` contracts.
+`GG081-netizen/crispy-fortnight` 中的 Bootstrap 1 在其首次 Discovery 运行暴露了已提交的 Discovery/Formal Job 身份契约混淆后已失效。其根提交和失败运行保留为不可变的审计证据；Bootstrap 2 使用独立的 `DiscoveryJobIdentity` 和 `FormalBaselineJobIdentity` 契约。
 
-Phase 14-G success does not close the DashScope incident:
+Phase 14-G 成功并不关闭 DashScope 事故：
 
 ```text
-phase14_g_repository_baseline_status = pass
-phase14_implementation_status = pass
-phase14_incident_closure_status = blocked
-phase14_authoritative_phase_status = blocked
-database_revision = 0001
+phase14_g_repository_baseline_status = pass（Phase 14-G 仓库基线状态：通过）
+phase14_implementation_status = pass（Phase 14 实现状态：通过）
+phase14_incident_closure_status = blocked（Phase 14 事故关闭状态：阻塞）
+phase14_authoritative_phase_status = blocked（Phase 14 权威阶段状态：阻塞）
+database_revision = 0001（数据库版本号）
 ```

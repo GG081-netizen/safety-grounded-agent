@@ -1,6 +1,6 @@
-# M1.3 — OIDC-compatible JWT Bearer Authentication & Authorization Closeout
+# M1.3（里程碑 1.3）— OIDC（OpenID Connect）兼容 JWT（JSON Web Token）Bearer 认证与授权收尾
 
-## Summary
+## 概述（Summary）
 
 M1.3 实现了 OIDC-compatible JWT Bearer 资源服务器认证边界和确定性 RBAC/ABAC 授权，接入 FastAPI 主链。Coordinator 继续保持纯业务编排职责，不感知 HTTP Header、JWT、JWKS、OIDC 配置或权限策略。
 
