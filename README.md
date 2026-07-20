@@ -117,7 +117,19 @@ Portfolio CI / package-build
 Portfolio CI / postgres-integration
 ```
 
-Phase 15-E 才会生成作品集 Evaluation Snapshot。本 README 不预写该阶段的最终指标。
+完整评测快照见：[`docs/evaluation/portfolio_release_results.md`](docs/evaluation/portfolio_release_results.md)
+
+**确定性固定评测集指标（Phase 15-E-R2）：**
+
+| 指标 | 值 |
+|---|---|
+| blocked_request_no_rag_rate | 1.00（7/7） |
+| fallback_activation_accuracy | 1.00（1/1 scenario） |
+| citation_coverage | 0.60（3/5） |
+| trace_completeness | 1.00（3/3 scenarios） |
+| policy_category_coverage | 1.00（6/6 categories） |
+
+这些结果来自当前仓库的确定性固定评测集（deterministic fixed evaluation set），不代表生产 Benchmark。Phase 14 Incident Closure 仍为 `blocked`。
 
 ## Quick Start
 
