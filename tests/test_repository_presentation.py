@@ -30,7 +30,8 @@ def test_readme_uses_fixed_portfolio_section_order() -> None:
     assert positions == sorted(positions)
     assert re.findall(r"^## .+$", text, flags=re.MULTILINE) == headings
     assert text.startswith("# 企业采购销售安全编排系统\n# Safety-Grounded Enterprise Agent")
-    assert "Phase 15-E 才会生成" in text
+    assert "portfolio_release_results.md" in text
+    assert "确定性固定评测集指标" in text
     assert "examples/procurement-planning" in text
 
 
