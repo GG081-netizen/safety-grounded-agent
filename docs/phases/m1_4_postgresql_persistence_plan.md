@@ -1,12 +1,12 @@
-# M1.4 — PostgreSQL Persistence & Idempotency Plan
+# M1.4（里程碑 1.4）— PostgreSQL（关系型数据库）持久化与幂等性计划
 
-## 1. Summary
+## 1. 概述（Summary）
 
 在 M1.3 认证/授权/服务边界之上引入 PostgreSQL 持久化存储、原子幂等防重、短事务状态迁移和应用层审计。Coordinator 完全不感知数据库。
 
 **M1.4 不引入：** Redis、Celery、多实例协调、管理后台、复杂报表。
 
-## 2. Revised Request Chain
+## 2. 修订后的请求链（Revised Request Chain）
 
 ```text
 FastAPI Route (async)
@@ -53,9 +53,9 @@ FastAPI Route (async)
 - No database lock held during LLM / RAG / Policy execution
 - app.py does not call database operations directly
 
-## 3. Idempotency State Machine
+## 3. 幂等性状态机（Idempotency State Machine）
 
-### 3.1 Scope
+### 3.1 作用范围（Scope）
 
 ```text
 scope = SHA256(
@@ -68,7 +68,7 @@ scope = SHA256(
 
 M1.4-E 的 `operation`（版本化操作名）固定为 `v1.chat`（版本 1 通用对话）或 `v1.qa`（版本 1 问答），由服务端 Route（路由）决定，不从请求体推断。
 
-### 3.2 Request Fingerprint
+### 3.2 请求指纹（Request Fingerprint）
 
 ```text
 fingerprint = SHA256(
@@ -82,7 +82,7 @@ fingerprint = SHA256(
 
 `fingerprint_version` starts at 1. Incremented if the fingerprint algorithm changes in a future migration.
 
-### 3.3 Atomic Claim (Transaction A)
+### 3.3 原子声明——事务 A（Atomic Claim / Transaction A）
 
 ```sql
 INSERT INTO idempotency_records
@@ -104,7 +104,7 @@ FROM idempotency_records
 WHERE scope = ? AND idempotency_key = ?
 ```
 
-### 3.4 State Transitions
+### 3.4 状态转换（State Transitions）
 
 ```text
                     INSERT (ON CONFLICT, atomic)
@@ -121,7 +121,7 @@ WHERE scope = ? AND idempotency_key = ?
          completed ◄──────────────┘              failed
 ```
 
-### 3.5 Existing Record Interpretation
+### 3.5 已有记录释义（Existing Record Interpretation）
 
 | Status | Fingerprint | Expired | Result |
 |---|---|---|---|
@@ -131,7 +131,7 @@ WHERE scope = ? AND idempotency_key = ?
 | `failed` | match | no | Re-claim allowed |
 | any | — | yes | Re-claim allowed |
 
-### 3.6 Re-claim (atomic with fencing)
+### 3.6 重新声明——带 Fencing 的原子操作（Re-claim / Atomic with Fencing）
 
 ```sql
 UPDATE idempotency_records
@@ -168,15 +168,15 @@ WHERE scope = ? AND idempotency_key = ?
 
 If 0 rows affected → lost ownership (another request re-claimed or completed it) → log fencing violation, abort.
 
-### 3.8 Orphan & Fencing Strategy (M1.4)
+### 3.8 孤儿与 Fencing 策略——M1.4（Orphan & Fencing Strategy）
 
 M1.4 does **not** implement a background orphan sweeper. However, any new request for the same `(scope, idempotency_key)` can atomically re-claim a stale `in_progress` record whose `lease_expires_at < NOW()`. This provides self-healing: orphaned records are naturally recovered by the next legitimate retry.
 
 A stale owner that eventually completes will be fenced out by the `owner_request_id + claim_version` condition in Transaction B — its UPDATE affects 0 rows and it must abort without overwriting the new owner's result.
 
-## 4. AgentRequest / AgentRun Semantics
+## 4. AgentRequest（代理请求）/ AgentRun（代理运行）语义
 
-### 4.1 AgentRequestRecord
+### 4.1 AgentRequestRecord（代理请求记录）
 
 One row per authenticated + authorized HTTP call entering the application layer.
 
@@ -210,7 +210,7 @@ One row per authenticated + authorized HTTP call entering the application layer.
 
 **Note:** `agent_requests` does NOT have a direct FK to `agent_runs`. The run reference lives on `agent_runs.original_request_id` (FK → agent_requests.id) and `idempotency_records.completed_run_id` (FK → agent_runs.id).
 
-### 4.2 AgentRunRecord
+### 4.2 AgentRunRecord（代理运行记录）
 
 One row per Coordinator execution. NOT created on replay.
 
@@ -240,7 +240,7 @@ One row per Coordinator execution. NOT created on replay.
 - UNIQUE: `ix_agent_runs_request_id` (`original_request_id`)
 - `ix_agent_runs_status_time` (`status`, `completed_at`)
 
-### 4.3 AuditEventRecord
+### 4.3 AuditEventRecord（审计事件记录）
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -263,7 +263,7 @@ One row per Coordinator execution. NOT created on replay.
 - `ix_audit_events_type_time` (`event_type`, `created_at`)
 - `ix_audit_events_tenant_org_time` (`tenant_id`, `organization_id`, `created_at`)
 
-### 4.4 IdempotencyRecord (with Fencing)
+### 4.4 IdempotencyRecord——带 Fencing（幂等记录）
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -322,9 +322,9 @@ One row per Coordinator execution. NOT created on replay.
 
 Does NOT contain: raw JWT Claims, email, display_name, token material.
 
-## 5. Transaction Boundaries
+## 5. 事务边界（Transaction Boundaries）
 
-### Transaction A: Claim + Request (short, < 50ms expected)
+$### 事务 A（声明 + 请求）： Claim + Request (short, < 50ms expected)
 
 ```
 BEGIN
@@ -336,11 +336,11 @@ BEGIN
 COMMIT
 ```
 
-### No-Transaction Zone
+### 无事务区域（No-Transaction Zone）
 
 Coordinator execution. No `AsyncSession`, no DB connection, no DB lock.
 
-### Transaction B-success (short, with fencing)
+$### 事务 B——成功（Transaction B-success） (short, with fencing)
 
 ```
 BEGIN
@@ -373,7 +373,7 @@ BEGIN
 COMMIT
 ```
 
-### Transaction B-fail (short, with fencing)
+$### 事务 B——失败（Transaction B-fail） (short, with fencing)
 
 ```
 BEGIN
@@ -394,7 +394,7 @@ BEGIN
 COMMIT
 ```
 
-## 6. Replay Behavior
+## 6. 重放行为（Replay Behavior）
 
 ### 6.1 What Gets Saved (response_snapshot)
 
@@ -415,7 +415,7 @@ The sanitized canonical result — `OrchestrationResult.to_public_dict(include_r
 `result_snapshot_schema_version` is stored as a column on `agent_runs`.
 Both start at 1. Incremented if the snapshot structure changes.
 
-### 6.2 What Happens on Replay
+### 6.2 重放时发生什么
 
 1. Transaction A finds existing `completed` record with matching fingerprint
 2. New `AgentRequestRecord` is INSERTed with `status='completed'`, `replayed_from_request_id` referencing the original request_id
@@ -430,25 +430,25 @@ Both start at 1. Incremented if the snapshot structure changes.
 7. A trace step `idempotency/replayed` is appended
 8. `original_request_id` and `original_run_id` are exposed in response (resolved via the joined agent_requests + agent_runs)
 
-### 6.3 What Is NOT Replayed
+### 6.3 不会被重放的内容
 
 Old `request_id`, old `trace_id`, old auth trace, old `debug`, old `raw_response`.
 
-## 7. Data Minimization
+## 7. 数据最小化（Data Minimization）
 
-### 7.1 Never Persisted
+### 7.1 永不被持久化的数据
 
 Bearer Token, raw JWT Claims, JWKS Document, key material, email, display_name, `raw_response`, `debug.rag_raw_response`, full internal exception stack traces, prompt templates, provider SDK response bodies.
 
-### 7.2 User Text Policy
+### 7.2 用户文本策略
 
 **Choice A (M1.4 default):** Only store `request_fingerprint` (SHA-256). Full `user_text` persistence requires opt-in via `CONVAGENT_DATABASE_STORE_USER_TEXT=true`. This is the safer default for enterprise deployment.
 
-### 7.3 Result Snapshots
+### 7.3 结果快照
 
 `response_snapshot` (idempotency) and `result_snapshot` (agent_runs) both use `OrchestrationResult.to_public_dict(include_raw_response=False)`. No raw provider data, no debug payload.
 
-## 8. Audit Scope (Plan A)
+## 8. 审计范围——方案 A（Audit Scope）
 
 M1.4 implements **application-level audit only**. Authentication and authorization failures (400/401/403/503) continue to use existing logging and trace — they are NOT persisted in `audit_events`. Documentation must state this is "application audit" not "complete security audit."
 
@@ -460,9 +460,9 @@ M1.4 implements **application-level audit only**. Authentication and authorizati
 | `request_completed` | Coordinator executed successfully | `success` |
 | `request_failed` | ApplicationExecutionError raised | `failure` |
 
-## 9. Configuration
+## 9. 配置（Configuration）
 
-### 9.1 DatabaseConfig
+### 9.1 DatabaseConfig（数据库配置）
 
 ```python
 class DatabaseConfig(BaseModel):
@@ -479,7 +479,7 @@ class DatabaseConfig(BaseModel):
     stale_in_progress_timeout_seconds: int = Field(default=300, ge=60)
 ```
 
-### 9.2 Runtime Mode Rules
+### 9.2 运行时模式规则
 
 | Mode | DB URL Empty | DB URL Set, Connection Fails |
 |---|---|---|
@@ -487,7 +487,7 @@ class DatabaseConfig(BaseModel):
 | `test` | OK (unit tests use NullRepository) | Requires explicit URL for integration tests |
 | `production` | MUST fail | MUST fail |
 
-### 9.3 Production Validator
+### 9.3 生产环境验证器
 
 ```python
 @model_validator(mode="after")
@@ -502,7 +502,7 @@ def _production_requires_database(self) -> "AppConfig":
     return self
 ```
 
-### 9.4 Environment Variables
+### 9.4 环境变量
 
 ```
 CONVAGENT_DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/convagent
@@ -517,7 +517,7 @@ CONVAGENT_IDEMPOTENCY_TTL=3600
 CONVAGENT_IDEMPOTENCY_STALE_TIMEOUT=300
 ```
 
-## 10. Alembic Policy
+## 10. Alembic（数据库迁移工具）策略
 
 - `alembic.ini` at project root (`/alembic.ini`), not inside `alembic/` directory
 - Migrations executed via explicit command: `uv run alembic upgrade head`
@@ -526,7 +526,7 @@ CONVAGENT_IDEMPOTENCY_STALE_TIMEOUT=300
 - `production` mode forbids auto-migration
 - Startup may optionally verify schema revision matches expected revision
 
-## 11. Thread Boundary
+## 11. 线程边界（Thread Boundary）
 
 - `DurableApplicationService.execute()` owns the `asyncio.to_thread()` call
 - `AsyncSession` is created and COMMITed in the async context (main event loop)
@@ -535,7 +535,7 @@ CONVAGENT_IDEMPOTENCY_STALE_TIMEOUT=300
 - Default `asyncio` executor (shared thread pool), no per-request `ThreadPoolExecutor`
 - `app.py` contains zero `asyncio.to_thread` calls
 
-## 12. Module Structure
+## 12. 模块结构（Module Structure）
 
 ```
 src/conversation_agent/
@@ -561,9 +561,9 @@ alembic/
     0001_initial_schema.py
 ```
 
-## 13. Core Class Signatures
+## 13. 核心类签名（Core Class Signatures）
 
-### 13.1 DurableApplicationService
+### 13.1 DurableApplicationService（持久化应用服务）
 
 ```python
 class DurableApplicationService:
