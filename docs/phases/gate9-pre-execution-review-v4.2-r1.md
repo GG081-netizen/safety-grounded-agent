@@ -418,6 +418,7 @@ def _base_report() -> dict:
         "runtime_root_created": False,
         "file_write_count": 0,
         "port_probe_count": 0,
+        "self_check_invariants": {},
     }
 
 
@@ -882,6 +883,7 @@ def run_formal() -> dict:
         "runtime_root_created": False,
         "file_write_count": 0,
         "port_probe_count": 0,
+        "self_check_invariants": {},
     }
 
 
@@ -1104,7 +1106,7 @@ uvicorn_stderr_empty = true
 - expected stdout: Byte-for-byte identical to Evidence 015 stdout.log content
 - expected stderr: (empty)
 - blocking: **Yes**
-- semantic: JSON parse → status=passed, failure_reason=null, cleanup_errors=[], failed_final_conditions=[], all 19 conditions hold, healthz/readyz/qa all pass, 40/40 assertions true, pipe_drain_succeeded=true, process_group_terminated=true, self_check_invariants absent (formal mode)
+- semantic: JSON parse → status=passed, failure_reason=null, cleanup_errors=[], failed_final_conditions=[], all 19 conditions hold, healthz/readyz/qa all pass, 40/40 assertions true, pipe_drain_succeeded=true, process_group_terminated=true, self_check_invariants = {} (formal mode — empty dict, present)
 
 ### Evidence 017 — http-smoke-stderr (blocking)
 - cwd: `/home/dick/.phase15_f/continuation_c1/evidence`
@@ -1224,7 +1226,7 @@ uvicorn_stderr_empty = true
 - Assert: all 19 final success conditions hold
 - Assert: `healthz.pass` = `true`, `readyz.pass` = `true`, `qa.pass` = `true`
 - Assert: `pipe_drain_succeeded` = `true`, `process_group_terminated` = `true`
-- Assert: `self_check_invariants` key not present (formal mode)
+- Assert: `self_check_invariants` = `{}` (key present, empty dict, in all modes)
 
 ### 6c. Evidence 018 result JSON
 - Assert: `evidence_name` = `"c1-gate9-015-http-smoke-execution"` (exact)
@@ -1278,7 +1280,7 @@ At Stage 9A start: fresh Glob `/home/dick/.phase15_f/continuation_c1/evidence/c1
 embedded_python_syntax = passed
 qa_assertion_count = 30
 final_success_condition_count = 19
-base_report_key_count = 32
+base_report_key_count = 33
 formal_schema_matches_base = true
 self_check_schema_matches_base = true
 invalid_arguments_schema_matches_base = true
